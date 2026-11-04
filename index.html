@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>DECKBUILDER // SYNC</title>
+  <title>SLAY THEE</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -11,8 +11,8 @@
     <!-- Lobby Screen -->
     <div id="lobby-screen" class="screen">
       <div class="lobby-card">
-        <h1 class="logo">TERMINAL // DECK</h1>
-        <p class="subtitle">EXTENSIBLE ROGUELIKE ENGINE // SYNC</p>
+        <h1 class="logo">SLAY THEE</h1>
+        <p class="subtitle">ROGUELIKE DECKBUILDER // SYNC</p>
         <div class="form-group">
           <input type="text" id="player-name-input" placeholder="AGENT NAME" maxlength="12" autofocus>
           <input type="text" id="room-code-input" placeholder="ROOM CODE (BLANK TO CREATE)" maxlength="6">
@@ -22,7 +22,7 @@
       </div>
     </div>
 
-    <!-- Active Combat Screen -->
+    <!-- Active Run & Combat Screen -->
     <div id="combat-screen" class="screen hidden">
       <header class="combat-top">
         <div class="top-meta">
@@ -31,7 +31,10 @@
           <div id="teammates-bar" class="teammates-bar"></div>
         </div>
 
-        <div id="relics-bar" class="relics-bar"></div>
+        <div class="hud-inventory-row">
+          <div id="relics-bar" class="relics-bar"></div>
+          <div id="potions-bar" class="potions-bar"></div>
+        </div>
 
         <div id="enemy-container" class="enemy-container">
           <div class="intent-chip" id="enemy-intent">INTENT: --</div>
@@ -78,13 +81,37 @@
         <div id="card-carousel" class="card-carousel"></div>
       </footer>
 
-      <!-- Compact Floor Reward Overlay -->
-      <div id="reward-modal" class="reward-modal hidden">
-        <div class="reward-panel">
-          <div class="reward-header">
-            <span class="reward-title">FLOOR CLEARED // SELECT UPGRADE</span>
-            <button id="btn-skip-reward" class="btn skip-btn">SKIP</button>
+      <!-- 1. Beginning-of-Run Powerful Relic Choice Overlay -->
+      <div id="boot-relic-modal" class="overlay-modal hidden">
+        <div class="overlay-panel">
+          <div class="overlay-header">
+            <span class="overlay-title">SLAY THEE // CHOOSE STARTER CORE RELIC</span>
           </div>
+          <p class="overlay-sub">Select 1 of 3 powerful Core Relics to define your build for this run:</p>
+          <div id="boot-relic-choices" class="reward-choices"></div>
+        </div>
+      </div>
+
+      <!-- 2. Branching Sector Map Overlay (Between Encounters) -->
+      <div id="map-modal" class="overlay-modal hidden">
+        <div class="overlay-panel map-panel">
+          <div class="overlay-header">
+            <span class="overlay-title">SECTOR MAP // SELECT NEXT ROOM</span>
+            <span id="map-progress-badge" class="overlay-badge">FLOOR 1 / 12</span>
+          </div>
+          <p class="overlay-sub">Tap a highlighted room node connected to your current position:</p>
+          <div id="map-nodes-container" class="map-nodes-container"></div>
+        </div>
+      </div>
+
+      <!-- 3. Post-Encounter Loot & Card Upgrade Overlay -->
+      <div id="reward-modal" class="overlay-modal hidden">
+        <div class="overlay-panel loot-panel">
+          <div class="overlay-header">
+            <span id="reward-modal-title" class="overlay-title">ENCOUNTER CLEARED // LOOT CACHE</span>
+            <button id="btn-skip-reward" class="btn skip-btn">CONTINUE TO MAP</button>
+          </div>
+          <p id="reward-modal-sub" class="overlay-sub">Pick up desired loot or skip remaining optional items:</p>
           <div id="reward-choices" class="reward-choices"></div>
         </div>
       </div>

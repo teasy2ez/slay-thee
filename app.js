@@ -15,12 +15,21 @@ import {
 import {
   CARD_REGISTRY,
   RELIC_REGISTRY,
+  POTION_REGISTRY,
   STATUS_REGISTRY,
+  MAP_ROOM_TYPES,
+  resolveCard,
+  getSelectableNodeIds,
   createInitialPlayer,
-  startFloorCombat,
+  beginRunFromLobby,
+  selectStarterRelicTransaction,
+  selectMapNodeTransaction,
   playCardTransaction,
+  usePotionTransaction,
+  discardPotionTransaction,
+  claimLootItemTransaction,
+  skipRemainingLootTransaction,
   endTurnTransaction,
-  claimPlayerReward,
   formatTelegraphedIntent,
   createBattleContext
 } from "./engine.js";
@@ -36,7 +45,6 @@ const firebaseConfig = {
   measurementId: "G-119K8VDQLR"
 };
 
-// Initialize Firebase & Analytics safely
 let app = null;
 let analytics = null;
 let db = null;
@@ -68,6 +76,7 @@ const roomBadge = document.getElementById('room-badge');
 const floorBadge = document.getElementById('floor-badge');
 const teammatesBar = document.getElementById('teammates-bar');
 const relicsBar = document.getElementById('relics-bar');
+const potionsBar = document.getElementById('potions-bar');
 
 const enemyName = document.getElementById('enemy-name');
 const enemyIntent = document.getElementById('enemy-intent');
@@ -87,14 +96,20 @@ const playerHpText = document.getElementById('player-hp-text');
 const playerStatuses = document.getElementById('player-statuses');
 const cardCarousel = document.getElementById('card-carousel');
 
+// Overlays
+const bootRelicModal = document.getElementById('boot-relic-modal');
+const bootRelicChoices = document.getElementById('boot-relic-choices');
+const mapModal = document.getElementById('map-modal');
+const mapProgressBadge = document.getElementById('map-progress-badge');
+const mapNodesContainer = document.getElementById('map-nodes-container');
 const rewardModal = document.getElementById('reward-modal');
+const rewardModalTitle = document.getElementById('reward-modal-title');
+const rewardModalSub = document.getElementById('reward-modal-sub');
 const rewardChoices = document.getElementById('reward-choices');
 const btnSkipReward = document.getElementById('btn-skip-reward');
 
 /**
- * Unified state mutation wrapper:
- * Executes a Firestore transaction in multiplayer mode, or mutates local state directly in solo mode.
- * Strips any `undefined` properties via JSON serialization so Firestore `tx.set` never fails.
+ * Unified state mutation wrapper for both Firestore transactions and Solo Local Mode.
  */
 async function mutateGameState(mutatorFn) {
   if (isLocalSoloMode) {
@@ -185,13 +200,13 @@ function startSoloMission() {
   currentGameState = {
     roomId: 'SOLO',
     floor: 1,
-    phase: 'combat',
+    phase: 'lobby',
     players: { [myPlayerId]: starterPlayer },
     enemies: [],
     combatLog: [`[SYSTEM] Solo mission initialized for ${name}.`]
   };
 
-  startFloorCombat(currentGameState, true);
+  beginRunFromLobby(currentGameState);
   currentGameState = JSON.parse(JSON.stringify(currentGameState));
 
   roomBadge.textContent = 'MODE: SOLO';
@@ -204,14 +219,28 @@ if (btnSolo) {
   btnSolo.addEventListener('click', startSoloMission);
 }
 
-// 2. Launch Combat Phase (from Lobby)
+// 2. Launch Run (into Starter Relic Selection)
 async function startGame() {
   await mutateGameState((data) => {
-    startFloorCombat(data, true);
+    return beginRunFromLobby(data);
   });
 }
 
-// 3. Play a Card from Hand
+// 3. Choose Beginning-of-Run Powerful Relic
+async function chooseBootRelic(relicId) {
+  await mutateGameState((data) => {
+    return selectStarterRelicTransaction(data, myPlayerId, relicId);
+  });
+}
+
+// 4. Select Room Node on Branching Sector Map
+async function chooseMapNode(nodeId) {
+  await mutateGameState((data) => {
+    return selectMapNodeTransaction(data, myPlayerId, nodeId);
+  });
+}
+
+// 5. Play a Card from Hand
 async function castCard(card) {
   if (!currentGameState || currentGameState.phase !== 'combat') return;
   await mutateGameState((data) => {
@@ -219,7 +248,38 @@ async function castCard(card) {
   });
 }
 
-// 4. End Player Turn and Resolve Round
+// 6. Use or Discard a Potion Slot (0, 1, 2)
+async function usePotionSlot(slotIdx) {
+  await mutateGameState((data) => {
+    return usePotionTransaction(data, myPlayerId, slotIdx);
+  });
+}
+
+async function dumpPotionSlot(slotIdx, ev) {
+  if (ev) ev.stopPropagation();
+  await mutateGameState((data) => {
+    return discardPotionTransaction(data, myPlayerId, slotIdx);
+  });
+}
+
+// 7. Claim or Skip Post-Encounter Loot Item
+async function claimLoot(lootItemId, payload = {}) {
+  await mutateGameState((data) => {
+    return claimLootItemTransaction(data, myPlayerId, lootItemId, payload);
+  });
+}
+
+async function skipRemainingLoot() {
+  await mutateGameState((data) => {
+    return skipRemainingLootTransaction(data, myPlayerId);
+  });
+}
+
+if (btnSkipReward) {
+  btnSkipReward.addEventListener('click', skipRemainingLoot);
+}
+
+// 8. End Player Turn
 async function endTurn() {
   if (!currentGameState || currentGameState.phase !== 'combat') return;
   await mutateGameState((data) => {
@@ -227,18 +287,6 @@ async function endTurn() {
   });
 }
 
-// 5. Claim or Skip Post-Combat Draft Reward
-async function selectReward(rewardType, itemId) {
-  await mutateGameState((data) => {
-    return claimPlayerReward(data, myPlayerId, rewardType, itemId);
-  });
-}
-
-if (btnSkipReward) {
-  btnSkipReward.addEventListener('click', () => selectReward('skip', null));
-}
-
-// Helper to render status tags for any entity
 function renderStatusBadges(container, statuses) {
   container.innerHTML = '';
   if (!statuses) return;
@@ -254,8 +302,13 @@ function renderStatusBadges(container, statuses) {
   }
 }
 
-// 6. Render Everything to DOM
+// 9. Render State to DOM
 function renderState(state) {
+  // Hide overlays by default and reveal based on active phase
+  if (bootRelicModal) bootRelicModal.classList.add('hidden');
+  if (mapModal) mapModal.classList.add('hidden');
+  if (rewardModal) rewardModal.classList.add('hidden');
+
   if (state.phase === 'lobby') {
     floorBadge.textContent = 'LOBBY READY';
     combatFeed.innerHTML = '<p>[SYSTEM] Connected. Tap START MISSION when all players join.</p>';
@@ -266,11 +319,11 @@ function renderState(state) {
 
   btnEndTurn.textContent = 'END TURN';
   btnEndTurn.onclick = endTurn;
-  floorBadge.textContent = `FLOOR ${state.floor}`;
+  floorBadge.textContent = `FLOOR ${state.floor || 1}`;
 
   const me = state.players?.[myPlayerId];
 
-  // Render Party Members
+  // Render Teammates
   teammatesBar.innerHTML = '';
   for (const [id, p] of Object.entries(state.players || {})) {
     if (id === myPlayerId) continue;
@@ -301,6 +354,34 @@ function renderState(state) {
     }
   }
 
+  // Render 3 Potion Slots
+  if (potionsBar && me) {
+    potionsBar.innerHTML = '';
+    const slots = Array.isArray(me.potions) ? me.potions : [null, null, null];
+    for (let i = 0; i < 3; i++) {
+      const pid = slots[i];
+      const pDef = pid ? POTION_REGISTRY[pid] : null;
+      const slotEl = document.createElement('div');
+      if (pDef) {
+        slotEl.className = 'potion-slot filled';
+        slotEl.title = `${pDef.name}: ${pDef.description} (Tap to use, × to discard)`;
+        slotEl.innerHTML = `
+          <span>${pDef.icon || '🧪'} ${pDef.name.split(' ')[0]}</span>
+          <span class="potion-dump" title="Discard Potion">×</span>
+        `;
+        slotEl.addEventListener('click', () => usePotionSlot(i));
+        const dumpBtn = slotEl.querySelector('.potion-dump');
+        if (dumpBtn) {
+          dumpBtn.addEventListener('click', (ev) => dumpPotionSlot(i, ev));
+        }
+      } else {
+        slotEl.className = 'potion-slot';
+        slotEl.textContent = `[SLOT ${i + 1}]`;
+      }
+      potionsBar.appendChild(slotEl);
+    }
+  }
+
   // Render Enemy & Telegraphed AI Intent
   const enemy = state.enemies?.[0];
   if (enemy) {
@@ -316,13 +397,20 @@ function renderState(state) {
     enemyIntent.className = `intent-chip ${telegraph.category}`;
 
     renderStatusBadges(enemyStatuses, enemy.statuses);
+  } else {
+    enemyName.textContent = 'NO HOSTILE TARGET';
+    enemyIntent.textContent = 'INTENT: --';
+    enemyHpFill.style.width = '0%';
+    enemyShieldFill.style.width = '0%';
+    enemyHpText.textContent = '-- / --';
+    enemyStatuses.innerHTML = '';
   }
 
   // Render Activity Ticker
   combatFeed.innerHTML = (state.combatLog || []).slice(-6).map(l => `<p>${l}</p>`).join('');
   combatFeed.scrollTop = combatFeed.scrollHeight;
 
-  // Render My Vitals, Pile Counts, Hand & Pending Rewards
+  // Render My Vitals, Pile Counts & Hand
   if (me) {
     playerEnergy.textContent = me.energy.toString();
     if (playerMaxEnergy) {
@@ -332,7 +420,8 @@ function renderState(state) {
       const dk = me.deck?.length || 0;
       const ds = me.discard?.length || 0;
       const ex = me.exhaust?.length || 0;
-      pileStats.textContent = `DK:${dk} · DS:${ds} · EX:${ex}`;
+      const md = me.masterDeck?.length || 0;
+      pileStats.textContent = `DK:${dk} · DS:${ds} · EX:${ex} · ALL:${md}`;
     }
 
     const myHpPct = Math.max(0, (me.hp / me.maxHp) * 100);
@@ -342,18 +431,15 @@ function renderState(state) {
     playerHpText.textContent = `${me.hp} / ${me.maxHp} ${me.shield > 0 ? `(+${me.shield})` : ''}`;
 
     renderStatusBadges(playerStatuses, me.statuses);
-
     btnEndTurn.style.opacity = me.isReady ? '0.5' : '1.0';
 
-    // Battle context for dynamic card preview numbers
     const ctx = createBattleContext(state, me, enemy);
 
     cardCarousel.innerHTML = '';
     for (const card of me.hand || []) {
-      const def = CARD_REGISTRY[card.defId];
+      const def = resolveCard(card);
       if (!def) continue;
 
-      // Compute dynamic damage/block preview through the modifier hook pipeline
       let descText = def.description;
       if (typeof def.dynamicDamage === 'function') {
         const base = def.dynamicDamage(me);
@@ -375,7 +461,8 @@ function renderState(state) {
       const cardEl = document.createElement('div');
       const disabledClass = me.energy < def.cost || me.isReady ? 'disabled' : '';
       const exhaustClass = def.exhaust ? 'exhaust-card' : '';
-      cardEl.className = `card-item ${disabledClass} ${exhaustClass}`.trim();
+      const upgradedClass = def.upgraded ? 'upgraded-card' : '';
+      cardEl.className = `card-item ${disabledClass} ${exhaustClass} ${upgradedClass}`.trim();
       cardEl.innerHTML = `
         <div class="card-top">
           <span class="card-cost">${def.cost}</span>
@@ -389,46 +476,194 @@ function renderState(state) {
       cardCarousel.appendChild(cardEl);
     }
 
-    // Render Post-Floor Reward Overlay if pending
-    if (rewardModal && rewardChoices) {
-      if (me.pendingReward) {
-        rewardModal.classList.remove('hidden');
-        rewardChoices.innerHTML = '';
+    // ------------------------------------------------------------------------
+    // OVERLAY 1: Beginning-of-Run Powerful Relic Choice (`boot_relic`)
+    // ------------------------------------------------------------------------
+    if (state.phase === 'boot_relic' && me.starterRelicChoices && me.starterRelicChoices.length > 0) {
+      bootRelicModal.classList.remove('hidden');
+      bootRelicChoices.innerHTML = '';
+      for (const rId of me.starterRelicChoices) {
+        const rDef = RELIC_REGISTRY[rId];
+        if (!rDef) continue;
+        const opt = document.createElement('div');
+        opt.className = 'reward-option relic-opt';
+        opt.innerHTML = `
+          <div class="reward-opt-top">
+            <span>❖ ${rDef.name}</span>
+            <span>STARTER CORE RELIC</span>
+          </div>
+          <div class="reward-opt-desc">${rDef.description}</div>
+        `;
+        opt.addEventListener('click', () => chooseBootRelic(rId));
+        bootRelicChoices.appendChild(opt);
+      }
+      return;
+    }
 
-        // Card options
-        for (const cardId of me.pendingReward.cards || []) {
-          const cDef = CARD_REGISTRY[cardId];
-          if (!cDef) continue;
-          const opt = document.createElement('div');
-          opt.className = 'reward-option';
-          opt.innerHTML = `
-            <div class="reward-opt-top">
-              <span>+ CARD: ${cDef.name}</span>
-              <span>COST ${cDef.cost} · ${cDef.type.toUpperCase()}</span>
-            </div>
-            <div class="reward-opt-desc">${cDef.description}</div>
-          `;
-          opt.addEventListener('click', () => selectReward('card', cardId));
-          rewardChoices.appendChild(opt);
+    // ------------------------------------------------------------------------
+    // OVERLAY 2: Branching Sector Map (`map`)
+    // ------------------------------------------------------------------------
+    if (state.phase === 'map' && state.map) {
+      mapModal.classList.remove('hidden');
+      const selectableIds = new Set(getSelectableNodeIds(state.map));
+      const nextFloor = (state.map.currentFloor || 0) + 1;
+      if (mapProgressBadge) {
+        mapProgressBadge.textContent = `FLOOR ${nextFloor} / ${state.map.totalFloors || 12}`;
+      }
+
+      mapNodesContainer.innerHTML = '';
+      for (const row of state.map.rows || []) {
+        const floorNum = row[0]?.floor || 1;
+        const isRowSelectable = row.some(n => selectableIds.has(n.id));
+        const rowEl = document.createElement('div');
+        rowEl.className = `map-row ${isRowSelectable ? 'active-row' : ''}`;
+
+        const labelEl = document.createElement('div');
+        labelEl.className = 'map-floor-label';
+        labelEl.textContent = `FL ${floorNum}`;
+        rowEl.appendChild(labelEl);
+
+        const nodesWrap = document.createElement('div');
+        nodesWrap.className = 'map-row-nodes';
+
+        for (const node of row) {
+          const meta = MAP_ROOM_TYPES[node.roomType] || MAP_ROOM_TYPES.combat;
+          const btn = document.createElement('button');
+          const isSelectable = selectableIds.has(node.id);
+          const isCurrent = state.map.currentNodeId === node.id;
+
+          btn.className = [
+            'map-node-btn',
+            meta.cssClass,
+            node.visited ? 'visited' : '',
+            isCurrent ? 'current-node' : '',
+            isSelectable ? 'selectable' : ''
+          ].filter(Boolean).join(' ');
+
+          btn.textContent = node.label;
+          btn.title = meta.description;
+          if (isSelectable) {
+            btn.addEventListener('click', () => chooseMapNode(node.id));
+          }
+          nodesWrap.appendChild(btn);
         }
 
-        // Relic option
-        if (me.pendingReward.relic && RELIC_REGISTRY[me.pendingReward.relic]) {
-          const rDef = RELIC_REGISTRY[me.pendingReward.relic];
-          const opt = document.createElement('div');
-          opt.className = 'reward-option relic-opt';
-          opt.innerHTML = `
-            <div class="reward-opt-top">
-              <span>❖ RELIC: ${rDef.name}</span>
-              <span>PASSIVE HOOK</span>
-            </div>
-            <div class="reward-opt-desc">${rDef.description}</div>
-          `;
-          opt.addEventListener('click', () => selectReward('relic', rDef.id));
-          rewardChoices.appendChild(opt);
+        rowEl.appendChild(nodesWrap);
+        mapNodesContainer.appendChild(rowEl);
+      }
+      return;
+    }
+
+    // ------------------------------------------------------------------------
+    // OVERLAY 3: Post-Encounter Loot & Forge Screen (`loot`)
+    // ------------------------------------------------------------------------
+    if (state.phase === 'loot' && me.pendingLoot && Array.isArray(me.pendingLoot.items)) {
+      rewardModal.classList.remove('hidden');
+      const items = me.pendingLoot.items;
+      const hasMandatoryRemaining = items.some(it => it.mandatory);
+
+      if (rewardModalTitle) {
+        rewardModalTitle.textContent = me.pendingLoot.mandatoryRoom
+          ? '⚠️ ANOMALY CONTAINMENT // MANDATORY LOOT'
+          : 'ROOM CLEARED // LOOT & UPGRADES';
+      }
+      if (rewardModalSub) {
+        rewardModalSub.textContent = hasMandatoryRemaining
+          ? 'MANDATORY ROOM: You must claim all mandatory items before continuing to the map!'
+          : 'Pick up any desired rewards below, or tap CONTINUE TO MAP to skip remaining items:';
+      }
+
+      if (btnSkipReward) {
+        if (hasMandatoryRemaining) {
+          btnSkipReward.textContent = 'LOCKED (CLAIM MANDATORY)';
+          btnSkipReward.classList.add('locked');
+        } else {
+          btnSkipReward.textContent = items.length > 0 ? 'SKIP & CONTINUE TO MAP' : 'CONTINUE TO MAP';
+          btnSkipReward.classList.remove('locked');
         }
-      } else {
-        rewardModal.classList.add('hidden');
+      }
+
+      rewardChoices.innerHTML = '';
+
+      for (const item of items) {
+        const group = document.createElement('div');
+        group.className = `loot-group ${item.mandatory ? 'mandatory-loot' : ''}`;
+
+        const header = document.createElement('div');
+        header.className = 'loot-group-header';
+        header.innerHTML = `
+          <span>${item.type.toUpperCase().replace('_', ' ')}</span>
+          ${item.mandatory ? '<span class="mandatory-tag">[MANDATORY PICKUP]</span>' : '<span>[OPTIONAL]</span>'}
+        `;
+        group.appendChild(header);
+
+        if (item.type === 'card_draft') {
+          for (const cObj of item.cards || []) {
+            const cDef = resolveCard(cObj);
+            if (!cDef) continue;
+            const opt = document.createElement('div');
+            opt.className = `reward-option ${cDef.upgraded ? 'upgrade-opt' : ''}`;
+            opt.innerHTML = `
+              <div class="reward-opt-top">
+                <span>+ CARD: ${cDef.name}</span>
+                <span>COST ${cDef.cost} · ${cDef.type.toUpperCase()}</span>
+              </div>
+              <div class="reward-opt-desc">${cDef.description}</div>
+            `;
+            opt.addEventListener('click', () => claimLoot(item.id, { defId: cObj.defId }));
+            group.appendChild(opt);
+          }
+        } else if (item.type === 'relic') {
+          const rDef = RELIC_REGISTRY[item.relicId];
+          if (rDef) {
+            const opt = document.createElement('div');
+            opt.className = 'reward-option relic-opt';
+            opt.innerHTML = `
+              <div class="reward-opt-top">
+                <span>❖ RELIC: ${rDef.name}</span>
+                <span>TAKE RELIC</span>
+              </div>
+              <div class="reward-opt-desc">${rDef.description}</div>
+            `;
+            opt.addEventListener('click', () => claimLoot(item.id));
+            group.appendChild(opt);
+          }
+        } else if (item.type === 'potion') {
+          const pDef = POTION_REGISTRY[item.potionId];
+          if (pDef) {
+            const opt = document.createElement('div');
+            opt.className = 'reward-option potion-opt';
+            opt.innerHTML = `
+              <div class="reward-opt-top">
+                <span>${pDef.icon || '🧪'} POTION: ${pDef.name}</span>
+                <span>STORE IN SLOT</span>
+              </div>
+              <div class="reward-opt-desc">${pDef.description}</div>
+            `;
+            opt.addEventListener('click', () => claimLoot(item.id));
+            group.appendChild(opt);
+          }
+        } else if (item.type === 'upgrade_token') {
+          const unupgraded = (me.masterDeck || []).filter(c => !c.upgraded);
+          for (const deckCard of unupgraded.slice(0, 6)) {
+            const baseDef = resolveCard(deckCard, false);
+            const upgDef = resolveCard(deckCard, true);
+            if (!baseDef || !upgDef) continue;
+            const opt = document.createElement('div');
+            opt.className = 'reward-option upgrade-opt';
+            opt.innerHTML = `
+              <div class="reward-opt-top">
+                <span>🔨 UPGRADE: ${baseDef.name} ➔ ${upgDef.name}</span>
+                <span>COST ${baseDef.cost}➔${upgDef.cost}</span>
+              </div>
+              <div class="reward-opt-desc">${upgDef.description}</div>
+            `;
+            opt.addEventListener('click', () => claimLoot(item.id, { instanceId: deckCard.instanceId }));
+            group.appendChild(opt);
+          }
+        }
+
+        rewardChoices.appendChild(group);
       }
     }
   }
