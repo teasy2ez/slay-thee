@@ -12,11 +12,12 @@
     <div id="lobby-screen" class="screen">
       <div class="lobby-card">
         <h1 class="logo">TERMINAL // DECK</h1>
-        <p class="subtitle">CO-OP MULTIPLAYER (FIRESTORE)</p>
+        <p class="subtitle">EXTENSIBLE ROGUELIKE ENGINE // SYNC</p>
         <div class="form-group">
           <input type="text" id="player-name-input" placeholder="AGENT NAME" maxlength="12" autofocus>
           <input type="text" id="room-code-input" placeholder="ROOM CODE (BLANK TO CREATE)" maxlength="6">
-          <button id="btn-join" class="btn primary">CONNECT ROOM</button>
+          <button id="btn-join" class="btn primary">CONNECT ROOM (FIRESTORE)</button>
+          <button id="btn-solo" class="btn secondary">SOLO LOCAL MISSION</button>
         </div>
       </div>
     </div>
@@ -29,6 +30,8 @@
           <span id="floor-badge">FLOOR 1</span>
           <div id="teammates-bar" class="teammates-bar"></div>
         </div>
+
+        <div id="relics-bar" class="relics-bar"></div>
 
         <div id="enemy-container" class="enemy-container">
           <div class="intent-chip" id="enemy-intent">INTENT: --</div>
@@ -54,16 +57,19 @@
         <div class="player-ribbon">
           <div class="energy-bubble">
             <span id="player-energy" class="energy-val">3</span>
-            <span class="energy-denom">/3</span>
+            <span id="player-max-energy" class="energy-denom">/3</span>
           </div>
 
           <div class="player-vitals">
+            <div class="vitals-top-row">
+              <div id="pile-stats" class="pile-stats">DK:0 · DS:0 · EX:0</div>
+              <div class="status-tags" id="player-statuses"></div>
+            </div>
             <div class="meter-bar">
               <div id="player-hp-fill" class="meter-fill hp-color" style="width: 100%;"></div>
               <div id="player-shield-fill" class="meter-fill shield-color" style="width: 0%;"></div>
               <span id="player-hp-text" class="meter-label">-- / --</span>
             </div>
-            <div class="status-tags" id="player-statuses"></div>
           </div>
 
           <button id="btn-end-turn" class="btn end-turn-btn">END TURN</button>
@@ -71,6 +77,17 @@
 
         <div id="card-carousel" class="card-carousel"></div>
       </footer>
+
+      <!-- Compact Floor Reward Overlay -->
+      <div id="reward-modal" class="reward-modal hidden">
+        <div class="reward-panel">
+          <div class="reward-header">
+            <span class="reward-title">FLOOR CLEARED // SELECT UPGRADE</span>
+            <button id="btn-skip-reward" class="btn skip-btn">SKIP</button>
+          </div>
+          <div id="reward-choices" class="reward-choices"></div>
+        </div>
+      </div>
     </div>
   </div>
 
