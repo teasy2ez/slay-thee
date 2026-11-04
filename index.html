@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>DECKBUILDER // SYNC</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Lobby Screen -->
+    <div id="lobby-screen" class="screen">
+      <div class="lobby-card">
+        <h1 class="logo">TERMINAL // DECK</h1>
+        <p class="subtitle">CO-OP MULTIPLAYER (FIRESTORE)</p>
+        <div class="form-group">
+          <input type="text" id="player-name-input" placeholder="AGENT NAME" maxlength="12" autofocus>
+          <input type="text" id="room-code-input" placeholder="ROOM CODE (BLANK TO CREATE)" maxlength="6">
+          <button id="btn-join" class="btn primary">CONNECT ROOM</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Combat Screen -->
+    <div id="combat-screen" class="screen hidden">
+      <header class="combat-top">
+        <div class="top-meta">
+          <span id="room-badge">ROOM: ----</span>
+          <span id="floor-badge">FLOOR 1</span>
+          <div id="teammates-bar" class="teammates-bar"></div>
+        </div>
+
+        <div id="enemy-container" class="enemy-container">
+          <div class="intent-chip" id="enemy-intent">INTENT: --</div>
+          <div class="enemy-card">
+            <div class="enemy-info">
+              <span id="enemy-name" class="entity-name">ENEMY</span>
+              <div class="status-tags" id="enemy-statuses"></div>
+            </div>
+            <div class="meter-bar">
+              <div id="enemy-hp-fill" class="meter-fill hp-color" style="width: 100%;"></div>
+              <div id="enemy-shield-fill" class="meter-fill shield-color" style="width: 0%;"></div>
+              <span id="enemy-hp-text" class="meter-label">-- / --</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <section class="combat-mid">
+        <div id="combat-feed" class="combat-feed"></div>
+      </section>
+
+      <footer class="combat-bot">
+        <div class="player-ribbon">
+          <div class="energy-bubble">
+            <span id="player-energy" class="energy-val">3</span>
+            <span class="energy-denom">/3</span>
+          </div>
+
+          <div class="player-vitals">
+            <div class="meter-bar">
+              <div id="player-hp-fill" class="meter-fill hp-color" style="width: 100%;"></div>
+              <div id="player-shield-fill" class="meter-fill shield-color" style="width: 0%;"></div>
+              <span id="player-hp-text" class="meter-label">-- / --</span>
+            </div>
+            <div class="status-tags" id="player-statuses"></div>
+          </div>
+
+          <button id="btn-end-turn" class="btn end-turn-btn">END TURN</button>
+        </div>
+
+        <div id="card-carousel" class="card-carousel"></div>
+      </footer>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
