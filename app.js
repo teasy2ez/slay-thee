@@ -13,12 +13,12 @@ import {
 
 // Import data-driven registries & hook-based engine
 import {
-  CARD_REGISTRY,
   RELIC_REGISTRY,
   POTION_REGISTRY,
   STATUS_REGISTRY,
   MAP_ROOM_TYPES,
   resolveCard,
+  findMapNode,
   getSelectableNodeIds,
   createInitialPlayer,
   beginRunFromLobby,
@@ -62,6 +62,7 @@ let myPlayerId = '';
 let currentRoomDoc = null;
 let currentGameState = null;
 let isLocalSoloMode = false;
+let selectedTargetIdx = 0;
 
 // UI Handles
 const lobbyScreen = document.getElementById('lobby-screen');
@@ -77,16 +78,11 @@ const floorBadge = document.getElementById('floor-badge');
 const teammatesBar = document.getElementById('teammates-bar');
 const relicsBar = document.getElementById('relics-bar');
 const potionsBar = document.getElementById('potions-bar');
-
-const enemyName = document.getElementById('enemy-name');
-const enemyIntent = document.getElementById('enemy-intent');
-const enemyHpFill = document.getElementById('enemy-hp-fill');
-const enemyShieldFill = document.getElementById('enemy-shield-fill');
-const enemyHpText = document.getElementById('enemy-hp-text');
-const enemyStatuses = document.getElementById('enemy-statuses');
+const enemyContainer = document.getElementById('enemy-container');
 
 const combatFeed = document.getElementById('combat-feed');
 
+const playerVitals = document.getElementById('player-vitals');
 const playerEnergy = document.getElementById('player-energy');
 const playerMaxEnergy = document.getElementById('player-max-energy');
 const pileStats = document.getElementById('pile-stats');
@@ -101,6 +97,8 @@ const bootRelicModal = document.getElementById('boot-relic-modal');
 const bootRelicChoices = document.getElementById('boot-relic-choices');
 const mapModal = document.getElementById('map-modal');
 const mapProgressBadge = document.getElementById('map-progress-badge');
+const mapScrollViewport = document.getElementById('map-scroll-viewport');
+const mapTreeSvg = document.getElementById('map-tree-svg');
 const mapNodesContainer = document.getElementById('map-nodes-container');
 const rewardModal = document.getElementById('reward-modal');
 const rewardModalTitle = document.getElementById('reward-modal-title');
@@ -114,11 +112,12 @@ const btnSkipReward = document.getElementById('btn-skip-reward');
 async function mutateGameState(mutatorFn) {
   if (isLocalSoloMode) {
     if (!currentGameState) return;
+    const prevSnapshot = JSON.parse(JSON.stringify(currentGameState));
     const nextState = JSON.parse(JSON.stringify(currentGameState));
     const changed = mutatorFn(nextState);
     if (changed !== false) {
       currentGameState = JSON.parse(JSON.stringify(nextState));
-      renderState(currentGameState);
+      renderState(currentGameState, prevSnapshot);
     }
     return;
   }
@@ -178,8 +177,9 @@ btnJoin.addEventListener('click', async () => {
 
     onSnapshot(currentRoomDoc, (docSnapshot) => {
       if (docSnapshot.exists()) {
+        const prev = currentGameState ? JSON.parse(JSON.stringify(currentGameState)) : null;
         currentGameState = docSnapshot.data();
-        renderState(currentGameState);
+        renderState(currentGameState, prev);
       }
     });
   } catch (error) {
@@ -212,7 +212,7 @@ function startSoloMission() {
   roomBadge.textContent = 'MODE: SOLO';
   lobbyScreen.classList.add('hidden');
   combatScreen.classList.remove('hidden');
-  renderState(currentGameState);
+  renderState(currentGameState, null);
 }
 
 if (btnSolo) {
@@ -235,6 +235,7 @@ async function chooseBootRelic(relicId) {
 
 // 4. Select Room Node on Branching Sector Map
 async function chooseMapNode(nodeId) {
+  selectedTargetIdx = 0;
   await mutateGameState((data) => {
     return selectMapNodeTransaction(data, myPlayerId, nodeId);
   });
@@ -244,14 +245,14 @@ async function chooseMapNode(nodeId) {
 async function castCard(card) {
   if (!currentGameState || currentGameState.phase !== 'combat') return;
   await mutateGameState((data) => {
-    return playCardTransaction(data, myPlayerId, card.instanceId, 0);
+    return playCardTransaction(data, myPlayerId, card.instanceId, selectedTargetIdx);
   });
 }
 
 // 6. Use or Discard a Potion Slot (0, 1, 2)
 async function usePotionSlot(slotIdx) {
   await mutateGameState((data) => {
-    return usePotionTransaction(data, myPlayerId, slotIdx);
+    return usePotionTransaction(data, myPlayerId, slotIdx, selectedTargetIdx);
   });
 }
 
@@ -302,9 +303,185 @@ function renderStatusBadges(container, statuses) {
   }
 }
 
+/**
+ * Spawns a floating combat text popup and triggers CSS hit/shield/lunge animations.
+ */
+function spawnFloatingText(parentEl, text, popClass) {
+  if (!parentEl) return;
+  const pop = document.createElement('div');
+  pop.className = `floating-pop ${popClass}`;
+  pop.textContent = text;
+  parentEl.appendChild(pop);
+  setTimeout(() => {
+    if (pop.parentNode) pop.parentNode.removeChild(pop);
+  }, 850);
+}
+
+function triggerClassAnim(el, animClass, duration = 400) {
+  if (!el) return;
+  el.classList.remove(animClass);
+  void el.offsetWidth; // Force reflow
+  el.classList.add(animClass);
+  setTimeout(() => el.classList.remove(animClass), duration);
+}
+
+function triggerCombatAnimations(prevState, nextState) {
+  if (!prevState || !nextState || prevState.phase !== 'combat') return;
+
+  // 1. Enemy diffs (damage taken, shield gained)
+  const prevEnemies = prevState.enemies || [];
+  const nextEnemies = nextState.enemies || [];
+  const enemyEls = enemyContainer ? enemyContainer.querySelectorAll('.enemy-unit') : [];
+
+  nextEnemies.forEach((eNext, idx) => {
+    const ePrev = prevEnemies.find(p => p.id === eNext.id);
+    const unitEl = enemyEls[idx];
+    if (!ePrev || !unitEl) return;
+
+    const hpLost = Math.max(0, ePrev.hp - eNext.hp);
+    const shdLost = Math.max(0, (ePrev.shield || 0) - (eNext.shield || 0));
+    const shdGained = Math.max(0, (eNext.shield || 0) - (ePrev.shield || 0));
+
+    if (hpLost > 0 || shdLost > 0) {
+      triggerClassAnim(unitEl, 'anim-hit', 380);
+      const totalHit = hpLost + shdLost;
+      spawnFloatingText(unitEl, `-${totalHit}${hpLost === 0 ? ' 🛡️' : ' HP'}`, 'dmg-pop');
+    } else if (shdGained > 0) {
+      triggerClassAnim(unitEl, 'anim-shield', 420);
+      spawnFloatingText(unitEl, `+${shdGained} 🛡️`, 'shd-pop');
+    }
+  });
+
+  // 2. Player diffs (damage taken from enemies, shield gained, HP healed)
+  const pPrev = prevState.players?.[myPlayerId];
+  const pNext = nextState.players?.[myPlayerId];
+  if (pPrev && pNext && playerVitals) {
+    const hpDiff = pNext.hp - pPrev.hp;
+    const shdDiff = (pNext.shield || 0) - (pPrev.shield || 0);
+
+    if (hpDiff < 0) {
+      // Enemy hit player HP! Lunge enemies and shake player vitals
+      enemyEls.forEach(el => {
+        if (!el.classList.contains('dead')) triggerClassAnim(el, 'anim-lunge', 360);
+      });
+      triggerClassAnim(playerVitals, 'anim-hit', 380);
+      spawnFloatingText(playerVitals, `${hpDiff} HP`, 'dmg-pop');
+    } else if (hpDiff > 0) {
+      spawnFloatingText(playerVitals, `+${hpDiff} HP`, 'heal-pop');
+    }
+
+    if (shdDiff > 0) {
+      triggerClassAnim(playerVitals, 'anim-shield', 420);
+      spawnFloatingText(playerVitals, `+${shdDiff} 🛡️`, 'shd-pop');
+    }
+  }
+}
+
+/**
+ * Renders the 12-Floor Branching Tree Map with SVG connector lines.
+ */
+function renderBranchingTreeMap(mapState) {
+  if (!mapState || !mapNodesContainer || !mapTreeSvg) return;
+
+  const selectableIds = new Set(getSelectableNodeIds(mapState));
+  const nextFloor = (mapState.currentFloor || 0) + 1;
+  if (mapProgressBadge) {
+    mapProgressBadge.textContent = `FLOOR ${nextFloor} / ${mapState.totalFloors || 12}`;
+  }
+
+  const totalRows = mapState.rows?.length || 12;
+  const canvasHeight = 780;
+  const topPad = 42;
+  const botPad = 42;
+  const rowStep = (canvasHeight - topPad - botPad) / Math.max(1, totalRows - 1);
+
+  // Compute (xPct, yPx) for every node (Floor 1 at top -> Floor 12 at bottom)
+  const nodeCoords = {};
+  for (const row of mapState.rows || []) {
+    for (const node of row) {
+      const yPx = Math.round(topPad + (node.floor - 1) * rowStep);
+      nodeCoords[node.id] = { xPct: node.xPct || 50, yPx, node };
+    }
+  }
+
+  // 1. Draw SVG Connector Lines between parent nodes and `nextIds`
+  let svgLines = '';
+  for (const row of mapState.rows || []) {
+    for (const node of row) {
+      const from = nodeCoords[node.id];
+      if (!from) continue;
+
+      for (const targetId of node.nextIds || []) {
+        const to = nodeCoords[targetId];
+        if (!to) continue;
+
+        const isFromCurrent = mapState.currentNodeId === node.id;
+        const isTargetSelectable = selectableIds.has(targetId);
+        const isVisitedEdge = node.visited && to.node.visited;
+
+        let edgeClass = 'tree-edge';
+        if (isFromCurrent && isTargetSelectable) {
+          edgeClass += ' selectable-edge';
+        } else if (isVisitedEdge) {
+          edgeClass += ' visited-edge';
+        }
+
+        svgLines += `<line class="${edgeClass}" x1="${from.xPct}%" y1="${from.yPx}" x2="${to.xPct}%" y2="${to.yPx}" />`;
+      }
+    }
+  }
+  mapTreeSvg.innerHTML = svgLines;
+
+  // 2. Render Floor Markers & Branching Room Nodes
+  mapNodesContainer.innerHTML = '';
+  for (const row of mapState.rows || []) {
+    if (!row[0]) continue;
+    const floorNum = row[0].floor;
+    const yPx = Math.round(topPad + (floorNum - 1) * rowStep);
+
+    const floorMarker = document.createElement('div');
+    floorMarker.className = 'map-floor-marker';
+    floorMarker.style.top = `${yPx}px`;
+    floorMarker.textContent = `F${floorNum}`;
+    mapNodesContainer.appendChild(floorMarker);
+
+    for (const node of row) {
+      const meta = MAP_ROOM_TYPES[node.roomType] || MAP_ROOM_TYPES.combat;
+      const isSelectable = selectableIds.has(node.id);
+      const isCurrent = mapState.currentNodeId === node.id;
+
+      const btn = document.createElement('button');
+      btn.className = [
+        'map-tree-node',
+        meta.cssClass,
+        node.visited ? 'visited' : '',
+        isCurrent ? 'current-node' : '',
+        isSelectable ? 'selectable' : ''
+      ].filter(Boolean).join(' ');
+
+      btn.style.left = `${node.xPct || 50}%`;
+      btn.style.top = `${yPx}px`;
+      btn.textContent = node.label;
+      btn.title = meta.description;
+
+      if (isSelectable) {
+        btn.addEventListener('click', () => chooseMapNode(node.id));
+      }
+      mapNodesContainer.appendChild(btn);
+    }
+  }
+
+  // Auto-scroll viewport to center on the next selectable floor
+  if (mapScrollViewport) {
+    const targetY = Math.max(0, topPad + (nextFloor - 2) * rowStep - 80);
+    setTimeout(() => {
+      mapScrollViewport.scrollTop = targetY;
+    }, 20);
+  }
+}
+
 // 9. Render State to DOM
-function renderState(state) {
-  // Hide overlays by default and reveal based on active phase
+function renderState(state, prevState = null) {
   if (bootRelicModal) bootRelicModal.classList.add('hidden');
   if (mapModal) mapModal.classList.add('hidden');
   if (rewardModal) rewardModal.classList.add('hidden');
@@ -322,6 +499,14 @@ function renderState(state) {
   floorBadge.textContent = `FLOOR ${state.floor || 1}`;
 
   const me = state.players?.[myPlayerId];
+
+  // Ensure `selectedTargetIdx` points to a living enemy
+  const enemies = state.enemies || [];
+  if (!enemies[selectedTargetIdx] || enemies[selectedTargetIdx].hp <= 0) {
+    const firstAliveIdx = enemies.findIndex(e => e.hp > 0);
+    selectedTargetIdx = firstAliveIdx !== -1 ? firstAliveIdx : 0;
+  }
+  const activeTargetEnemy = enemies[selectedTargetIdx] || enemies[0];
 
   // Render Teammates
   teammatesBar.innerHTML = '';
@@ -382,28 +567,50 @@ function renderState(state) {
     }
   }
 
-  // Render Enemy & Telegraphed AI Intent
-  const enemy = state.enemies?.[0];
-  if (enemy) {
-    enemyName.textContent = enemy.name;
-    const hpPct = Math.max(0, (enemy.hp / enemy.maxHp) * 100);
-    const shieldPct = Math.min(100, (enemy.shield / enemy.maxHp) * 100);
-    enemyHpFill.style.width = `${hpPct}%`;
-    enemyShieldFill.style.width = `${shieldPct}%`;
-    enemyHpText.textContent = `${enemy.hp} / ${enemy.maxHp} ${enemy.shield > 0 ? `(+${enemy.shield})` : ''}`;
+  // Render All Enemies in Multi-Enemy Container
+  if (enemyContainer) {
+    enemyContainer.innerHTML = '';
+    enemies.forEach((enemy, idx) => {
+      const isTargeted = idx === selectedTargetIdx && enemy.hp > 0;
+      const isDead = enemy.hp <= 0;
+      const telegraph = formatTelegraphedIntent(enemy, me, state);
 
-    const telegraph = formatTelegraphedIntent(enemy, me, state);
-    enemyIntent.textContent = telegraph.text;
-    enemyIntent.className = `intent-chip ${telegraph.category}`;
+      const hpPct = Math.max(0, (enemy.hp / enemy.maxHp) * 100);
+      const shieldPct = Math.min(100, ((enemy.shield || 0) / enemy.maxHp) * 100);
 
-    renderStatusBadges(enemyStatuses, enemy.statuses);
-  } else {
-    enemyName.textContent = 'NO HOSTILE TARGET';
-    enemyIntent.textContent = 'INTENT: --';
-    enemyHpFill.style.width = '0%';
-    enemyShieldFill.style.width = '0%';
-    enemyHpText.textContent = '-- / --';
-    enemyStatuses.innerHTML = '';
+      const unitEl = document.createElement('div');
+      unitEl.className = `enemy-unit ${isTargeted ? 'targeted' : ''} ${isDead ? 'dead' : ''}`.trim();
+
+      unitEl.innerHTML = `
+        <div class="intent-chip ${telegraph.category}">${telegraph.text}</div>
+        <div class="enemy-card">
+          <div class="enemy-info">
+            <span class="entity-name">${isTargeted && enemies.length > 1 ? '🎯 ' : ''}${enemy.name}</span>
+            ${isTargeted && enemies.length > 1 ? '<span class="target-badge">TARGET</span>' : ''}
+            <div class="status-tags enemy-status-slot"></div>
+          </div>
+          <div class="meter-bar">
+            <div class="meter-fill hp-color" style="width: ${hpPct}%;"></div>
+            <div class="meter-fill shield-color" style="width: ${shieldPct}%;"></div>
+            <span class="meter-label">${enemy.hp} / ${enemy.maxHp} ${enemy.shield > 0 ? `(+${enemy.shield} 🛡️)` : ''}</span>
+          </div>
+        </div>
+      `;
+
+      const statusSlot = unitEl.querySelector('.enemy-status-slot');
+      if (statusSlot) {
+        renderStatusBadges(statusSlot, enemy.statuses);
+      }
+
+      if (!isDead) {
+        unitEl.addEventListener('click', () => {
+          selectedTargetIdx = idx;
+          renderState(currentGameState, null);
+        });
+      }
+
+      enemyContainer.appendChild(unitEl);
+    });
   }
 
   // Render Activity Ticker
@@ -425,15 +632,15 @@ function renderState(state) {
     }
 
     const myHpPct = Math.max(0, (me.hp / me.maxHp) * 100);
-    const myShieldPct = Math.min(100, (me.shield / me.maxHp) * 100);
+    const myShieldPct = Math.min(100, ((me.shield || 0) / me.maxHp) * 100);
     playerHpFill.style.width = `${myHpPct}%`;
     playerShieldFill.style.width = `${myShieldPct}%`;
-    playerHpText.textContent = `${me.hp} / ${me.maxHp} ${me.shield > 0 ? `(+${me.shield})` : ''}`;
+    playerHpText.textContent = `${me.hp} / ${me.maxHp} ${me.shield > 0 ? `(+${me.shield} 🛡️)` : ''}`;
 
     renderStatusBadges(playerStatuses, me.statuses);
     btnEndTurn.style.opacity = me.isReady ? '0.5' : '1.0';
 
-    const ctx = createBattleContext(state, me, enemy);
+    const ctx = createBattleContext(state, me, activeTargetEnemy);
 
     cardCarousel.innerHTML = '';
     for (const card of me.hand || []) {
@@ -443,10 +650,10 @@ function renderState(state) {
       let descText = def.description;
       if (typeof def.dynamicDamage === 'function') {
         const base = def.dynamicDamage(me);
-        const finalDmg = ctx.computeCardDamagePreview(me, enemy, base, def.strengthMultiplier || 1);
+        const finalDmg = ctx.computeCardDamagePreview(me, activeTargetEnemy, base, def.strengthMultiplier || 1);
         descText = `${def.description} (${finalDmg} dmg)`;
       } else if (def.baseDamage !== undefined) {
-        const finalDmg = ctx.computeCardDamagePreview(me, enemy, def.baseDamage, def.strengthMultiplier || 1);
+        const finalDmg = ctx.computeCardDamagePreview(me, activeTargetEnemy, def.baseDamage, def.strengthMultiplier || 1);
         if (finalDmg !== def.baseDamage) {
           descText = def.description.replace(`${def.baseDamage} damage`, `${finalDmg} damage`);
         }
@@ -476,6 +683,11 @@ function renderState(state) {
       cardCarousel.appendChild(cardEl);
     }
 
+    // Trigger Reactive Combat Animations on State Transitions
+    if (prevState) {
+      triggerCombatAnimations(prevState, state);
+    }
+
     // ------------------------------------------------------------------------
     // OVERLAY 1: Beginning-of-Run Powerful Relic Choice (`boot_relic`)
     // ------------------------------------------------------------------------
@@ -501,56 +713,11 @@ function renderState(state) {
     }
 
     // ------------------------------------------------------------------------
-    // OVERLAY 2: Branching Sector Map (`map`)
+    // OVERLAY 2: Visual Branching Tree Map (`map`)
     // ------------------------------------------------------------------------
     if (state.phase === 'map' && state.map) {
       mapModal.classList.remove('hidden');
-      const selectableIds = new Set(getSelectableNodeIds(state.map));
-      const nextFloor = (state.map.currentFloor || 0) + 1;
-      if (mapProgressBadge) {
-        mapProgressBadge.textContent = `FLOOR ${nextFloor} / ${state.map.totalFloors || 12}`;
-      }
-
-      mapNodesContainer.innerHTML = '';
-      for (const row of state.map.rows || []) {
-        const floorNum = row[0]?.floor || 1;
-        const isRowSelectable = row.some(n => selectableIds.has(n.id));
-        const rowEl = document.createElement('div');
-        rowEl.className = `map-row ${isRowSelectable ? 'active-row' : ''}`;
-
-        const labelEl = document.createElement('div');
-        labelEl.className = 'map-floor-label';
-        labelEl.textContent = `FL ${floorNum}`;
-        rowEl.appendChild(labelEl);
-
-        const nodesWrap = document.createElement('div');
-        nodesWrap.className = 'map-row-nodes';
-
-        for (const node of row) {
-          const meta = MAP_ROOM_TYPES[node.roomType] || MAP_ROOM_TYPES.combat;
-          const btn = document.createElement('button');
-          const isSelectable = selectableIds.has(node.id);
-          const isCurrent = state.map.currentNodeId === node.id;
-
-          btn.className = [
-            'map-node-btn',
-            meta.cssClass,
-            node.visited ? 'visited' : '',
-            isCurrent ? 'current-node' : '',
-            isSelectable ? 'selectable' : ''
-          ].filter(Boolean).join(' ');
-
-          btn.textContent = node.label;
-          btn.title = meta.description;
-          if (isSelectable) {
-            btn.addEventListener('click', () => chooseMapNode(node.id));
-          }
-          nodesWrap.appendChild(btn);
-        }
-
-        rowEl.appendChild(nodesWrap);
-        mapNodesContainer.appendChild(rowEl);
-      }
+      renderBranchingTreeMap(state.map);
       return;
     }
 

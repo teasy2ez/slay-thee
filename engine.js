@@ -1,5 +1,5 @@
 // ============================================================================
-// ENGINE.JS — Hook Pipeline, Map/Loot State Machine, Potions & AI Evaluator
+// ENGINE.JS — Hook Pipeline, Multi-Enemy Combat, Map/Loot & AI Evaluator
 // ============================================================================
 
 import {
@@ -31,7 +31,7 @@ export {
 };
 
 // ----------------------------------------------------------------------------
-// 1. Pure Utility & Legacy-Compatible Helpers
+// 1. Pure Utility & Starter Deck (4 Strikes, 4 Defends, 2 Random Commons)
 // ----------------------------------------------------------------------------
 
 export function createDefaultStatuses() {
@@ -78,6 +78,9 @@ export function applyDamageToEntity(incomingDamage, currentShield, currentHp) {
   };
 }
 
+/**
+ * Starter deck: 4 Strikes, 4 Defends, and 2 Random Common Cards.
+ */
 export function createStarterDeck() {
   const cards = [];
   const add = (id, count, upgraded = false) => {
@@ -89,12 +92,20 @@ export function createStarterDeck() {
       });
     }
   };
+
   add('strike', 4, false);
   add('defend', 4, false);
-  add('expose', 1, false);
-  add('flurry', 1, false);
-  add('shield_slam', 1, false);
-  add('venom_blade', 1, false);
+
+  const commonPool = Object.values(CARD_REGISTRY).filter(
+    c => c.rarity === 'common' && c.id !== 'strike' && c.id !== 'defend' && c.id !== 'inflict_vuln'
+  );
+  for (let i = 0; i < 2; i++) {
+    if (commonPool.length > 0) {
+      const pick = commonPool[Math.floor(Math.random() * commonPool.length)];
+      add(pick.id, 1, false);
+    }
+  }
+
   return cards.sort(() => Math.random() - 0.5);
 }
 
@@ -199,10 +210,11 @@ export function runModifierHook(hookName, initialValue, payload, state) {
 }
 
 export function triggerHook(hookName, payload, state) {
+  const defaultTarget = state.enemies?.find(e => e.hp > 0) || state.enemies?.[0];
   const ctx = createBattleContext(
     state,
     payload.player || payload.entity || payload.source,
-    payload.target || state.enemies?.[0]
+    payload.target || defaultTarget
   );
 
   const targetPlayers = payload.player
@@ -240,10 +252,17 @@ export function triggerHook(hookName, payload, state) {
 // ----------------------------------------------------------------------------
 
 export function createBattleContext(state, activePlayer = null, activeTarget = null) {
+  const resolveLivingTarget = (preferred) => {
+    if (preferred && preferred.hp > 0) return preferred;
+    return state?.enemies?.find(e => e.hp > 0) || preferred || state?.enemies?.[0];
+  };
+
   const ctx = {
     state,
     player: activePlayer,
-    target: activeTarget || state?.enemies?.find(e => e.hp > 0) || state?.enemies?.[0],
+    get target() {
+      return resolveLivingTarget(activeTarget);
+    },
 
     log(msg) {
       if (!state.combatLog) state.combatLog = [];
@@ -254,17 +273,18 @@ export function createBattleContext(state, activePlayer = null, activeTarget = n
     },
 
     computeCardDamagePreview(player, target, baseDamage, strengthMultiplier = 1) {
+      const t = resolveLivingTarget(target);
       const out = runModifierHook(
         'modifyOutgoingDamage',
         baseDamage,
-        { source: player, target, multiplier: strengthMultiplier },
+        { source: player, target: t, multiplier: strengthMultiplier },
         state
       );
-      if (!target) return out;
+      if (!t) return out;
       return runModifierHook(
         'modifyIncomingDamage',
         out,
-        { source: player, target },
+        { source: player, target: t },
         state
       );
     },
@@ -274,36 +294,37 @@ export function createBattleContext(state, activePlayer = null, activeTarget = n
     },
 
     dealDamage(source, target, baseDamage, options = {}) {
-      if (!target || target.hp <= 0) return { shieldDamage: 0, hpDamage: 0 };
+      const actualTarget = source?.relics ? resolveLivingTarget(target) : target;
+      if (!actualTarget || actualTarget.hp <= 0) return { shieldDamage: 0, hpDamage: 0 };
       const multiplier = options.strengthMultiplier || options.card?.strengthMultiplier || 1;
 
       const afterOut = runModifierHook(
         'modifyOutgoingDamage',
         baseDamage,
-        { source, target, card: options.card, multiplier },
+        { source, target: actualTarget, card: options.card, multiplier },
         state
       );
       const finalDmg = runModifierHook(
         'modifyIncomingDamage',
         afterOut,
-        { source, target, card: options.card },
+        { source, target: actualTarget, card: options.card },
         state
       );
 
-      const res = applyDamageToEntity(finalDmg, target.shield || 0, target.hp);
-      target.shield = res.finalShield;
-      target.hp = res.finalHp;
+      const res = applyDamageToEntity(finalDmg, actualTarget.shield || 0, actualTarget.hp);
+      actualTarget.shield = res.finalShield;
+      actualTarget.hp = res.finalHp;
 
       const label = options.sourceName || options.card?.name || source?.name || 'Attack';
-      ctx.log(`[ATK] ${source?.name || label} -> ${target.name}: ${finalDmg} dmg (${res.shieldDamage > 0 ? `🛡️-${res.shieldDamage} ` : ''}HP -${res.hpDamage}).`);
+      ctx.log(`[ATK] ${source?.name || label} -> ${actualTarget.name}: ${finalDmg} dmg (${res.shieldDamage > 0 ? `🛡️-${res.shieldDamage} ` : ''}HP -${res.hpDamage}).`);
 
-      if (target.isAlive !== undefined && target.hp <= 0) {
-        target.isAlive = false;
+      if (actualTarget.isAlive !== undefined && actualTarget.hp <= 0) {
+        actualTarget.isAlive = false;
       }
 
       triggerHook('onDamageDealt', {
         source,
-        target,
+        target: actualTarget,
         player: source?.relics ? source : null,
         damage: finalDmg,
         hpLost: res.hpDamage,
@@ -312,9 +333,9 @@ export function createBattleContext(state, activePlayer = null, activeTarget = n
 
       triggerHook('onDamageTaken', {
         source,
-        target,
-        entity: target,
-        player: target?.relics ? target : null,
+        target: actualTarget,
+        entity: actualTarget,
+        player: actualTarget?.relics ? actualTarget : null,
         damage: finalDmg,
         hpLost: res.hpDamage,
         isAttack: true
@@ -324,14 +345,15 @@ export function createBattleContext(state, activePlayer = null, activeTarget = n
     },
 
     dealRawDamage(source, target, rawDamage, sourceName = 'Effect') {
-      if (!target || target.hp <= 0 || rawDamage <= 0) return { shieldDamage: 0, hpDamage: 0 };
-      const res = applyDamageToEntity(rawDamage, target.shield || 0, target.hp);
-      target.shield = res.finalShield;
-      target.hp = res.finalHp;
-      if (target.isAlive !== undefined && target.hp <= 0) {
-        target.isAlive = false;
+      const actualTarget = source?.relics ? resolveLivingTarget(target) : target;
+      if (!actualTarget || actualTarget.hp <= 0 || rawDamage <= 0) return { shieldDamage: 0, hpDamage: 0 };
+      const res = applyDamageToEntity(rawDamage, actualTarget.shield || 0, actualTarget.hp);
+      actualTarget.shield = res.finalShield;
+      actualTarget.hp = res.finalHp;
+      if (actualTarget.isAlive !== undefined && actualTarget.hp <= 0) {
+        actualTarget.isAlive = false;
       }
-      ctx.log(`[PROC] ${sourceName} dealt ${rawDamage} to ${target.name}.`);
+      ctx.log(`[PROC] ${sourceName} dealt ${rawDamage} to ${actualTarget.name}.`);
       return res;
     },
 
@@ -359,16 +381,17 @@ export function createBattleContext(state, activePlayer = null, activeTarget = n
     },
 
     applyStatus(source, target, statusId, stacks) {
-      if (!target || target.hp <= 0 || !stacks) return;
-      ensureEntityStatuses(target);
-      target.statuses[statusId] = (target.statuses[statusId] || 0) + stacks;
+      const actualTarget = (target && target !== source) ? resolveLivingTarget(target) : target;
+      if (!actualTarget || actualTarget.hp <= 0 || !stacks) return;
+      ensureEntityStatuses(actualTarget);
+      actualTarget.statuses[statusId] = (actualTarget.statuses[statusId] || 0) + stacks;
       const statusName = STATUS_REGISTRY[statusId]?.name || statusId.toUpperCase();
-      ctx.log(`[STATUS] ${target.name} gained +${stacks} ${statusName} (${target.statuses[statusId]}).`);
+      ctx.log(`[STATUS] ${actualTarget.name} gained +${stacks} ${statusName} (${actualTarget.statuses[statusId]}).`);
 
       triggerHook('onStatusApplied', {
         source,
-        target,
-        entity: target,
+        target: actualTarget,
+        entity: actualTarget,
         player: source?.relics ? source : null,
         statusId,
         stacks
@@ -427,7 +450,7 @@ export function createBattleContext(state, activePlayer = null, activeTarget = n
 }
 
 // ----------------------------------------------------------------------------
-// 4. Enemy Behavior Tree Evaluator & Intent System
+// 4. Multi-Enemy Spawner, Behavior Tree Evaluator & Intent System
 // ----------------------------------------------------------------------------
 
 export function evaluateBehaviorTree(node, enemy, state) {
@@ -485,18 +508,18 @@ export function evaluateBehaviorTree(node, enemy, state) {
 
 function structuredCloneIntent(intent, floor = 1) {
   if (!intent) {
-    return { id: 'basic_strike', type: 'attack', value: 6 + floor, hits: 1, label: 'STRIKE' };
+    return { id: 'basic_strike', type: 'attack', value: 7 + floor, hits: 1, label: 'STRIKE' };
   }
-  const scaleBonus = Math.floor((floor - 1) * 1.1);
+  const scaleBonus = Math.floor((floor - 1) * 1.5);
   const copy = JSON.parse(JSON.stringify(intent));
   if (typeof copy.value === 'number') {
     const perHitBonus = (copy.hits && copy.hits > 1)
-      ? Math.floor((floor - 1) * 0.45)
+      ? Math.floor((floor - 1) * 0.65)
       : scaleBonus;
     copy.value += perHitBonus;
   }
   if (typeof copy.block === 'number') {
-    copy.block += Math.floor((floor - 1) * 1.4);
+    copy.block += Math.floor((floor - 1) * 1.6);
   }
   return copy;
 }
@@ -509,7 +532,7 @@ export function selectNextEnemyIntent(enemy, state) {
   const chosen = evaluateBehaviorTree(template.behaviorTree, enemy, state) || {
     id: 'fallback_attack',
     type: 'attack',
-    value: 6 + (state.floor || 1),
+    value: 7 + (state.floor || 1),
     hits: 1,
     label: 'STRIKE'
   };
@@ -517,33 +540,29 @@ export function selectNextEnemyIntent(enemy, state) {
   return chosen;
 }
 
-export function spawnEnemyForFloor(floor, playerCount = 1, state = {}, roomType = 'combat') {
-  const nonBossKeys = Object.keys(ENEMY_REGISTRY).filter(k => k !== 'overlord_core');
-  const archetypeId = roomType === 'boss'
-    ? 'overlord_core'
-    : nonBossKeys[(floor - 1) % nonBossKeys.length];
-  const template = ENEMY_REGISTRY[archetypeId];
-
-  let baseHp = template.baseHp + (floor * template.hpPerFloor) + Math.max(0, playerCount - 1) * 22;
-  if (roomType === 'elite') baseHp = Math.floor(baseHp * 1.3);
-  if (roomType === 'anomaly') baseHp = Math.floor(baseHp * 1.15);
+function createEnemyUnit(archetypeId, index, floor, playerCount, state, options = {}) {
+  const template = ENEMY_REGISTRY[archetypeId] || ENEMY_REGISTRY.sentinel_drone;
+  const hpScale = options.hpScale || 1.0;
+  const rawHp = template.baseHp + (floor * template.hpPerFloor) + Math.max(0, playerCount - 1) * 24;
+  const finalHp = Math.max(18, Math.floor(rawHp * hpScale));
 
   const statuses = createDefaultStatuses();
-  if (roomType === 'elite' || roomType === 'boss') {
-    statuses.strength = 1;
+  if (options.bonusStrength) {
+    statuses.strength = options.bonusStrength;
   }
 
-  const tagPrefix = roomType === 'elite' ? '[ELITE] ' : (roomType === 'anomaly' ? '[ANOMALY] ' : '');
+  const suffix = String.fromCharCode(65 + index);
+  const prefix = options.prefix || '';
   const enemy = {
-    id: `enemy_f${floor}`,
+    id: `enemy_f${floor}_${index}_${Math.random().toString(36).substring(2, 5)}`,
     archetypeId,
-    roomType,
-    name: `${tagPrefix}${template.namePrefix}-${floor}`,
-    hp: baseHp,
-    maxHp: baseHp,
-    shield: 0,
+    roomType: options.roomType || 'combat',
+    name: `${prefix}${template.namePrefix}-${floor}${suffix}`,
+    hp: finalHp,
+    maxHp: finalHp,
+    shield: options.startingShield || 0,
     statuses,
-    aiState: { turn: 0, lastMoveId: null },
+    aiState: { turn: index % 2, lastMoveId: null },
     intent: null
   };
 
@@ -551,10 +570,123 @@ export function spawnEnemyForFloor(floor, playerCount = 1, state = {}, roomType 
   return enemy;
 }
 
+/**
+ * Spawns 1 to 3 enemies per encounter based on floor and roomType.
+ */
+export function spawnEnemiesForEncounter(floor, playerCount = 1, state = {}, roomType = 'combat') {
+  const standardKeys = Object.keys(ENEMY_REGISTRY).filter(k => k !== 'overlord_core');
+  const pickRandomArchetype = () => standardKeys[Math.floor(Math.random() * standardKeys.length)];
+
+  if (roomType === 'boss') {
+    const boss = createEnemyUnit('overlord_core', 0, floor, playerCount, state, {
+      roomType,
+      hpScale: 1.15,
+      bonusStrength: 2,
+      startingShield: 10
+    });
+    const escort = createEnemyUnit('sentinel_drone', 1, floor, playerCount, state, {
+      roomType,
+      hpScale: 0.65,
+      prefix: 'ESCORT '
+    });
+    return [boss, escort];
+  }
+
+  if (roomType === 'elite') {
+    if (Math.random() < 0.55) {
+      // Duo Elite encounter: 1 Elite + 1 Escort
+      const mainKey = ['enforcer_mech', 'plague_weaver'][floor % 2];
+      return [
+        createEnemyUnit(mainKey, 0, floor, playerCount, state, {
+          roomType,
+          prefix: '[ELITE] ',
+          hpScale: 1.18,
+          bonusStrength: 2,
+          startingShield: 6
+        }),
+        createEnemyUnit('swarm_stalker', 1, floor, playerCount, state, {
+          roomType,
+          hpScale: 0.72
+        })
+      ];
+    }
+    const eliteKey = standardKeys[(floor - 1) % standardKeys.length];
+    return [
+      createEnemyUnit(eliteKey, 0, floor, playerCount, state, {
+        roomType,
+        prefix: '[ELITE] ',
+        hpScale: 1.4,
+        bonusStrength: 2,
+        startingShield: 8
+      })
+    ];
+  }
+
+  if (roomType === 'anomaly') {
+    // Anomaly room: always 2 volatile units
+    return [
+      createEnemyUnit(pickRandomArchetype(), 0, floor, playerCount, state, {
+        roomType,
+        prefix: '[ANOMALY] ',
+        hpScale: 0.92,
+        bonusStrength: 1
+      }),
+      createEnemyUnit(pickRandomArchetype(), 1, floor, playerCount, state, {
+        roomType,
+        prefix: '[ANOMALY] ',
+        hpScale: 0.85,
+        bonusStrength: 1
+      })
+    ];
+  }
+
+  // Standard Combat: 1 to 3 enemies
+  const roll = Math.random();
+  if (floor === 1) {
+    if (roll < 0.55) {
+      return [
+        createEnemyUnit('swarm_stalker', 0, floor, playerCount, state, { roomType, hpScale: 0.68 }),
+        createEnemyUnit('sentinel_drone', 1, floor, playerCount, state, { roomType, hpScale: 0.68 })
+      ];
+    }
+    return [createEnemyUnit('sentinel_drone', 0, floor, playerCount, state, { roomType, hpScale: 1.05 })];
+  }
+
+  if (floor >= 3 && roll < 0.22) {
+    // 3-Enemy Swarm!
+    return [
+      createEnemyUnit('swarm_stalker', 0, floor, playerCount, state, { roomType, hpScale: 0.58 }),
+      createEnemyUnit(pickRandomArchetype(), 1, floor, playerCount, state, { roomType, hpScale: 0.62 }),
+      createEnemyUnit('swarm_stalker', 2, floor, playerCount, state, { roomType, hpScale: 0.58 })
+    ];
+  }
+
+  if (roll < 0.75) {
+    // 2-Enemy Duo!
+    return [
+      createEnemyUnit(pickRandomArchetype(), 0, floor, playerCount, state, { roomType, hpScale: 0.78 }),
+      createEnemyUnit(pickRandomArchetype(), 1, floor, playerCount, state, { roomType, hpScale: 0.78 })
+    ];
+  }
+
+  // 1 Heavy Bruiser
+  return [
+    createEnemyUnit('enforcer_mech', 0, floor, playerCount, state, {
+      roomType,
+      hpScale: 1.2,
+      bonusStrength: 1
+    })
+  ];
+}
+
+export function spawnEnemyForFloor(floor, playerCount = 1, state = {}, roomType = 'combat') {
+  return spawnEnemiesForEncounter(floor, playerCount, state, roomType)[0];
+}
+
 export function executeEnemyIntent(enemy, targetPlayer, state) {
   if (!enemy || enemy.hp <= 0) return;
   const ctx = createBattleContext(state, targetPlayer, enemy);
-  const intent = enemy.intent || { type: 'attack', value: 6, hits: 1, label: 'ATTACK' };
+  const intent = enemy.intent || { type: 'attack', value: 7, hits: 1, label: 'ATTACK' };
 
   if (intent.block && intent.block > 0) {
     ctx.gainBlock(enemy, intent.block, { raw: true });
@@ -588,8 +720,8 @@ export function executeEnemyIntent(enemy, targetPlayer, state) {
 }
 
 export function formatTelegraphedIntent(enemy, targetPlayer, state) {
-  if (!enemy || !enemy.intent) {
-    return { text: 'INTENT: --', category: 'neutral' };
+  if (!enemy || enemy.hp <= 0 || !enemy.intent) {
+    return { text: 'DEFEATED', category: 'neutral' };
   }
   const intent = enemy.intent;
   const hits = intent.hits || 1;
@@ -619,7 +751,7 @@ export function formatTelegraphedIntent(enemy, targetPlayer, state) {
   else if (intent.type === 'attack_debuff') category = 'attack-debuff';
 
   return {
-    text: `INTENT: ${parts.join(' · ')}`,
+    text: parts.join(' · '),
     category
   };
 }
@@ -632,15 +764,15 @@ export function createInitialPlayer(id, name) {
   const p = {
     id,
     name,
-    hp: 60,
-    maxHp: 60,
+    hp: 52,
+    maxHp: 52,
     shield: 0,
     energy: 3,
     maxEnergy: 3,
     turnAttacksPlayed: 0,
     statuses: createDefaultStatuses(),
     relics: [],
-    potions: ['fire_potion', 'block_potion', null], // 3 Potion Slots (2 starter potions + 1 empty slot)
+    potions: ['fire_potion', null, null], // 3 Potion Slots (1 starter potion)
     starterRelicChoices: rollStarterRelicChoices(3),
     masterDeck: createStarterDeck(),
     deck: [],
@@ -655,9 +787,6 @@ export function createInitialPlayer(id, name) {
   return p;
 }
 
-/**
- * Transitions from Lobby into the Beginning-of-Run Powerful Relic Selection (`phase: 'boot_relic'`).
- */
 export function beginRunFromLobby(state) {
   state.floor = 1;
   state.phase = 'boot_relic';
@@ -674,10 +803,6 @@ export function beginRunFromLobby(state) {
   return true;
 }
 
-/**
- * Player selects their beginning-of-run powerful relic.
- * Once all players have chosen, transitions to `'map'` so they can select Floor 1's room.
- */
 export function selectStarterRelicTransaction(state, playerId, relicId) {
   const p = state?.players?.[playerId];
   if (!p || !RELIC_REGISTRY[relicId]) return false;
@@ -699,14 +824,11 @@ export function selectStarterRelicTransaction(state, playerId, relicId) {
   );
   if (allChosen) {
     state.phase = 'map';
-    ctx.log('[MAP] Sector Map online. Select a Floor 1 node to deploy.');
+    ctx.log('[MAP] Sector Map online. Select a Floor 1 node on the branching tree.');
   }
   return true;
 }
 
-/**
- * Player selects an accessible room node on the branching Sector Map.
- */
 export function selectMapNodeTransaction(state, playerId, nodeId) {
   if (!state || state.phase !== 'map') return false;
   if (!state.map) state.map = generateSectorMap(12);
@@ -727,7 +849,6 @@ export function selectMapNodeTransaction(state, playerId, nodeId) {
   if (!state.combatLog) state.combatLog = [];
   state.combatLog.push(`[MAP] Deployed to Floor ${node.floor}: ${roomMeta.name}.`);
 
-  // Non-combat rooms (`upgrade` Forge/Rest or `treasure` Supply Cache) go straight to Loot/Upgrade phase
   if (node.roomType === 'upgrade') {
     state.phase = 'loot';
     for (const pid in state.players) {
@@ -752,7 +873,6 @@ export function selectMapNodeTransaction(state, playerId, nodeId) {
     return true;
   }
 
-  // Combat rooms (`combat`, `elite`, `anomaly`, `boss`)
   startFloorCombat(state, false, node.roomType);
   return true;
 }
@@ -765,7 +885,7 @@ export function startFloorCombat(state, isInitialFloor = false, roomType = 'comb
   state.phase = 'combat';
   state.currentRoomType = roomType;
   const pCount = Object.keys(state.players || {}).length || 1;
-  state.enemies = [spawnEnemyForFloor(state.floor || 1, pCount, state, roomType)];
+  state.enemies = spawnEnemiesForEncounter(state.floor || 1, pCount, state, roomType);
 
   for (const pid in state.players) {
     const p = state.players[pid];
@@ -793,7 +913,8 @@ export function startFloorCombat(state, isInitialFloor = false, roomType = 'comb
   }
 
   if (!state.combatLog) state.combatLog = [];
-  state.combatLog.push(`=== FLOOR ${state.floor}: ${state.enemies[0].name} ENGAGED ===`);
+  const names = state.enemies.map(e => e.name).join(' & ');
+  state.combatLog.push(`=== FLOOR ${state.floor}: ${names} ENGAGED ===`);
 
   for (const pid in state.players) {
     const p = state.players[pid];
@@ -815,7 +936,11 @@ export function playCardTransaction(state, playerId, cardInstanceId, targetEnemy
   const def = resolveCard(cardInstance);
   if (!def || me.energy < def.cost) return false;
 
-  const target = state.enemies?.[targetEnemyIdx] || state.enemies?.[0];
+  const preferredEnemy = state.enemies?.[targetEnemyIdx];
+  const target = (preferredEnemy && preferredEnemy.hp > 0)
+    ? preferredEnemy
+    : state.enemies?.find(e => e.hp > 0) || state.enemies?.[0];
+
   const ctx = createBattleContext(state, me, target);
 
   me.energy -= def.cost;
@@ -832,7 +957,7 @@ export function playCardTransaction(state, playerId, cardInstanceId, targetEnemy
   triggerHook('onCardPlayed', {
     player: me,
     entity: me,
-    target,
+    target: ctx.target,
     card: cardInstance,
     cardDef: def
   }, state);
@@ -847,7 +972,7 @@ export function playCardTransaction(state, playerId, cardInstanceId, targetEnemy
   return true;
 }
 
-export function usePotionTransaction(state, playerId, slotIdx) {
+export function usePotionTransaction(state, playerId, slotIdx, targetEnemyIdx = 0) {
   if (!state) return false;
   const me = state.players?.[playerId];
   if (!me || !me.isAlive || !Array.isArray(me.potions)) return false;
@@ -856,7 +981,11 @@ export function usePotionTransaction(state, playerId, slotIdx) {
   if (!potionId || !POTION_REGISTRY[potionId]) return false;
 
   const pDef = POTION_REGISTRY[potionId];
-  const target = state.enemies?.find(e => e.hp > 0) || state.enemies?.[0];
+  const preferredEnemy = state.enemies?.[targetEnemyIdx];
+  const target = (preferredEnemy && preferredEnemy.hp > 0)
+    ? preferredEnemy
+    : state.enemies?.find(e => e.hp > 0) || state.enemies?.[0];
+
   const ctx = createBattleContext(state, me, target);
 
   me.potions[slotIdx] = null;
@@ -887,7 +1016,7 @@ export function discardPotionTransaction(state, playerId, slotIdx) {
 }
 
 // ----------------------------------------------------------------------------
-// 7. Post-Encounter Loot Generation & Mandatory vs Optional Claiming
+// 7. Post-Encounter Loot Generation (No Relics in Normal Combat!)
 // ----------------------------------------------------------------------------
 
 export function checkAndHandleFloorVictory(state) {
@@ -923,7 +1052,7 @@ export function generateRoomLoot(player, roomType = 'combat', isMandatory = fals
     const pool = Object.values(CARD_REGISTRY).filter(
       c => c.id !== 'inflict_vuln' && c.rarity !== 'starter'
     );
-    const upgradeChance = (roomType === 'elite' || roomType === 'boss' || roomType === 'anomaly') ? 0.55 : 0.25;
+    const upgradeChance = (roomType === 'elite' || roomType === 'boss' || roomType === 'anomaly') ? 0.50 : 0.20;
     const picks = [...pool].sort(() => Math.random() - 0.5).slice(0, 3).map(c => ({
       defId: c.id,
       upgraded: Math.random() < upgradeChance
@@ -937,8 +1066,8 @@ export function generateRoomLoot(player, roomType = 'combat', isMandatory = fals
     });
   }
 
-  // 2. Relic Drop (guaranteed in elite, anomaly, treasure, boss; 35% chance in standard combat)
-  const shouldDropRelic = ['elite', 'anomaly', 'treasure', 'boss'].includes(roomType) || Math.random() < 0.35;
+  // 2. Relic Drop: ONLY in elite, anomaly, treasure, or boss (NEVER in normal combat!)
+  const shouldDropRelic = ['elite', 'anomaly', 'treasure', 'boss'].includes(roomType);
   if (shouldDropRelic) {
     const ownedIds = new Set((player.relics || []).map(r => r.id));
     const available = Object.values(RELIC_REGISTRY)
@@ -956,8 +1085,8 @@ export function generateRoomLoot(player, roomType = 'combat', isMandatory = fals
     }
   }
 
-  // 3. Potion Drop (guaranteed in elite, anomaly, treasure, upgrade; 65% in combat)
-  const shouldDropPotion = roomType !== 'combat' || Math.random() < 0.65;
+  // 3. Potion Drop (guaranteed in elite, anomaly, treasure, upgrade; 55% in normal combat)
+  const shouldDropPotion = roomType !== 'combat' || Math.random() < 0.55;
   if (shouldDropPotion) {
     const pKeys = Object.keys(POTION_REGISTRY);
     const potionId = pKeys[Math.floor(Math.random() * pKeys.length)];
@@ -969,8 +1098,8 @@ export function generateRoomLoot(player, roomType = 'combat', isMandatory = fals
     });
   }
 
-  // 4. Card Upgrade Token (guaranteed in upgrade, boss, anomaly, treasure; 30% in elite)
-  if (['upgrade', 'boss', 'anomaly', 'treasure'].includes(roomType) || (roomType === 'elite' && Math.random() < 0.4)) {
+  // 4. Card Upgrade Token (in upgrade, boss, anomaly, treasure; 25% in elite)
+  if (['upgrade', 'boss', 'anomaly', 'treasure'].includes(roomType) || (roomType === 'elite' && Math.random() < 0.25)) {
     const hasUnupgraded = (player.masterDeck || []).some(c => !c.upgraded);
     if (hasUnupgraded) {
       items.push({
@@ -988,9 +1117,6 @@ export function generateRoomLoot(player, roomType = 'combat', isMandatory = fals
   };
 }
 
-/**
- * Claims an individual loot item from `player.pendingLoot.items`.
- */
 export function claimLootItemTransaction(state, playerId, lootItemId, selectionPayload = {}) {
   const p = state?.players?.[playerId];
   if (!p || !p.pendingLoot || !Array.isArray(p.pendingLoot.items)) return false;
@@ -1031,7 +1157,6 @@ export function claimLootItemTransaction(state, playerId, lootItemId, selectionP
     if (!Array.isArray(p.potions)) p.potions = [null, null, null];
     let slotIdx = p.potions.findIndex(s => s === null);
     if (slotIdx === -1) {
-      // If all 3 slots are full and player claims a potion, replace slot 2 so mandatory rooms never soft-lock
       slotIdx = 2;
     }
     p.potions[slotIdx] = potionId;
@@ -1051,7 +1176,6 @@ export function claimLootItemTransaction(state, playerId, lootItemId, selectionP
 
   p.pendingLoot.items.splice(idx, 1);
 
-  // If no loot items remain, automatically check if we can transition to the map
   if (p.pendingLoot.items.length === 0) {
     p.pendingLoot = null;
     checkAndAdvanceToMap(state);
@@ -1059,10 +1183,6 @@ export function claimLootItemTransaction(state, playerId, lootItemId, selectionP
   return true;
 }
 
-/**
- * Skips any remaining optional loot and advances to the Sector Map.
- * Refuses if any remaining item has `mandatory: true`.
- */
 export function skipRemainingLootTransaction(state, playerId) {
   const p = state?.players?.[playerId];
   if (!p) return false;
@@ -1087,7 +1207,6 @@ function checkAndAdvanceToMap(state) {
     .every(p => !p.pendingLoot || !p.pendingLoot.items || p.pendingLoot.items.length === 0);
 
   if (allDone) {
-    // If Floor 12 Boss was cleared, generate a fresh Sector Map for Endless/Next Sector
     const selectable = getSelectableNodeIds(state.map);
     if (selectable.length === 0) {
       state.map = generateSectorMap(12);
@@ -1097,14 +1216,13 @@ function checkAndAdvanceToMap(state) {
   }
 }
 
-// Backwards-compatible wrapper
-export function claimPlayerReward(state, playerId, rewardType, itemId) {
+export function claimPlayerReward(state, playerId, rewardType) {
   if (rewardType === 'skip') return skipRemainingLootTransaction(state, playerId);
   return true;
 }
 
 // ----------------------------------------------------------------------------
-// 8. End Player Turn & Enemy Round Resolution
+// 8. End Player Turn & Multi-Enemy Round Resolution
 // ----------------------------------------------------------------------------
 
 export function endTurnTransaction(state, playerId) {

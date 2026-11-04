@@ -36,20 +36,8 @@
           <div id="potions-bar" class="potions-bar"></div>
         </div>
 
-        <div id="enemy-container" class="enemy-container">
-          <div class="intent-chip" id="enemy-intent">INTENT: --</div>
-          <div class="enemy-card">
-            <div class="enemy-info">
-              <span id="enemy-name" class="entity-name">ENEMY</span>
-              <div class="status-tags" id="enemy-statuses"></div>
-            </div>
-            <div class="meter-bar">
-              <div id="enemy-hp-fill" class="meter-fill hp-color" style="width: 100%;"></div>
-              <div id="enemy-shield-fill" class="meter-fill shield-color" style="width: 0%;"></div>
-              <span id="enemy-hp-text" class="meter-label">-- / --</span>
-            </div>
-          </div>
-        </div>
+        <!-- Multi-Enemy Targetable Container -->
+        <div id="enemy-container" class="enemy-container"></div>
       </header>
 
       <section class="combat-mid">
@@ -57,13 +45,13 @@
       </section>
 
       <footer class="combat-bot">
-        <div class="player-ribbon">
+        <div id="player-ribbon" class="player-ribbon">
           <div class="energy-bubble">
             <span id="player-energy" class="energy-val">3</span>
             <span id="player-max-energy" class="energy-denom">/3</span>
           </div>
 
-          <div class="player-vitals">
+          <div id="player-vitals" class="player-vitals">
             <div class="vitals-top-row">
               <div id="pile-stats" class="pile-stats">DK:0 · DS:0 · EX:0</div>
               <div class="status-tags" id="player-statuses"></div>
@@ -92,15 +80,20 @@
         </div>
       </div>
 
-      <!-- 2. Branching Sector Map Overlay (Between Encounters) -->
+      <!-- 2. Branching Tree Map Overlay (Between Encounters) -->
       <div id="map-modal" class="overlay-modal hidden">
         <div class="overlay-panel map-panel">
           <div class="overlay-header">
-            <span class="overlay-title">SECTOR MAP // SELECT NEXT ROOM</span>
+            <span class="overlay-title">SECTOR TREE MAP // SELECT NEXT ROOM</span>
             <span id="map-progress-badge" class="overlay-badge">FLOOR 1 / 12</span>
           </div>
-          <p class="overlay-sub">Tap a highlighted room node connected to your current position:</p>
-          <div id="map-nodes-container" class="map-nodes-container"></div>
+          <p class="overlay-sub">Follow a connected branch from your position and tap a highlighted room:</p>
+          <div id="map-scroll-viewport" class="map-scroll-viewport">
+            <div id="map-tree-canvas" class="map-tree-canvas">
+              <svg id="map-tree-svg" class="map-tree-svg"></svg>
+              <div id="map-nodes-container" class="map-nodes-layer"></div>
+            </div>
+          </div>
         </div>
       </div>
 

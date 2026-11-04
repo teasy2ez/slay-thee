@@ -130,14 +130,14 @@ export const STATUS_REGISTRY = {
 
 /**
  * ENEMY_REGISTRY
- * Defines Enemy archetypes and declarative Behavior Trees (`behaviorTree`).
+ * Tuned upwards for higher challenge and multi-enemy encounters.
  */
 export const ENEMY_REGISTRY = {
   sentinel_drone: {
     id: 'sentinel_drone',
     namePrefix: 'SENTINEL',
-    baseHp: 36,
-    hpPerFloor: 6,
+    baseHp: 42,
+    hpPerFloor: 8,
     behaviorTree: {
       type: 'selector',
       children: [
@@ -149,9 +149,9 @@ export const ENEMY_REGISTRY = {
             intent: {
               id: 'emergency_guard',
               type: 'defend_buff',
-              block: 10,
+              block: 11,
               status: { id: 'strength', stacks: 2 },
-              label: 'GUARD +10 / STR +2'
+              label: 'GUARD +11 / STR +2'
             }
           }
         },
@@ -163,7 +163,7 @@ export const ENEMY_REGISTRY = {
             intent: {
               id: 'target_lock',
               type: 'attack_debuff',
-              value: 6,
+              value: 8,
               hits: 1,
               status: { id: 'vulnerable', stacks: 2 },
               label: 'LOCK-ON'
@@ -175,16 +175,55 @@ export const ENEMY_REGISTRY = {
           options: [
             {
               weight: 40,
-              intent: { id: 'pulse_laser', type: 'attack', value: 9, hits: 1, label: 'PULSE LASER' }
+              intent: { id: 'pulse_laser', type: 'attack', value: 11, hits: 1, label: 'PULSE LASER' }
             },
             {
               weight: 35,
-              intent: { id: 'twin_sweep', type: 'multi_attack', value: 4, hits: 2, label: 'TWIN SWEEP' }
+              intent: { id: 'twin_sweep', type: 'multi_attack', value: 5, hits: 2, label: 'TWIN SWEEP' }
             },
             {
               weight: 25,
               noRepeat: true,
-              intent: { id: 'shield_matrix', type: 'attack_defend', value: 6, hits: 1, block: 6, label: 'BASH + SHIELD' }
+              intent: { id: 'shield_matrix', type: 'attack_defend', value: 8, hits: 1, block: 7, label: 'BASH + SHIELD' }
+            }
+          ]
+        }
+      ]
+    }
+  },
+
+  swarm_stalker: {
+    id: 'swarm_stalker',
+    namePrefix: 'STALKER',
+    baseHp: 32,
+    hpPerFloor: 6,
+    behaviorTree: {
+      type: 'selector',
+      children: [
+        {
+          type: 'condition',
+          check: (enemy) => (enemy.aiState?.turn || 0) % 3 === 1 && enemy.aiState?.lastMoveId !== 'frenzy_howl',
+          child: {
+            type: 'action',
+            intent: {
+              id: 'frenzy_howl',
+              type: 'defend_buff',
+              block: 6,
+              status: { id: 'strength', stacks: 2 },
+              label: 'FRENZY (+6 SHD / +2 STR)'
+            }
+          }
+        },
+        {
+          type: 'weighted',
+          options: [
+            {
+              weight: 55,
+              intent: { id: 'razor_claws', type: 'multi_attack', value: 5, hits: 2, label: 'RAZOR CLAWS' }
+            },
+            {
+              weight: 45,
+              intent: { id: 'hamstring', type: 'attack_debuff', value: 7, hits: 1, status: { id: 'weak', stacks: 1 }, label: 'HAMSTRING' }
             }
           ]
         }
@@ -195,8 +234,8 @@ export const ENEMY_REGISTRY = {
   enforcer_mech: {
     id: 'enforcer_mech',
     namePrefix: 'ENFORCER',
-    baseHp: 46,
-    hpPerFloor: 8,
+    baseHp: 52,
+    hpPerFloor: 9,
     behaviorTree: {
       type: 'selector',
       children: [
@@ -205,7 +244,7 @@ export const ENEMY_REGISTRY = {
           check: (enemy) => enemy.aiState?.lastMoveId === 'overcharge_core',
           child: {
             type: 'action',
-            intent: { id: 'mega_crush', type: 'attack', value: 15, hits: 1, label: 'HEAVY SLAM' }
+            intent: { id: 'mega_crush', type: 'attack', value: 18, hits: 1, label: 'HEAVY SLAM' }
           }
         },
         {
@@ -216,9 +255,9 @@ export const ENEMY_REGISTRY = {
             intent: {
               id: 'overcharge_core',
               type: 'defend_buff',
-              block: 8,
+              block: 10,
               status: { id: 'strength', stacks: 2 },
-              label: 'CHARGE (+8 SHD / +2 STR)'
+              label: 'CHARGE (+10 SHD / +2 STR)'
             }
           }
         },
@@ -227,11 +266,11 @@ export const ENEMY_REGISTRY = {
           options: [
             {
               weight: 55,
-              intent: { id: 'suppressive_fire', type: 'multi_attack', value: 4, hits: 2, status: { id: 'weak', stacks: 1 }, label: 'SUPPRESS' }
+              intent: { id: 'suppressive_fire', type: 'multi_attack', value: 5, hits: 2, status: { id: 'weak', stacks: 1 }, label: 'SUPPRESS' }
             },
             {
               weight: 45,
-              intent: { id: 'armor_bash', type: 'attack_defend', value: 8, hits: 1, block: 5, label: 'IRON BASH' }
+              intent: { id: 'armor_bash', type: 'attack_defend', value: 10, hits: 1, block: 6, label: 'IRON BASH' }
             }
           ]
         }
@@ -242,8 +281,8 @@ export const ENEMY_REGISTRY = {
   plague_weaver: {
     id: 'plague_weaver',
     namePrefix: 'BIO-WEAVER',
-    baseHp: 38,
-    hpPerFloor: 7,
+    baseHp: 44,
+    hpPerFloor: 8,
     behaviorTree: {
       type: 'selector',
       children: [
@@ -255,9 +294,9 @@ export const ENEMY_REGISTRY = {
             intent: {
               id: 'acid_spray',
               type: 'debuff',
-              status: { id: 'corrode', stacks: 3 },
+              status: { id: 'corrode', stacks: 4 },
               secondaryStatus: { id: 'weak', stacks: 1 },
-              label: 'ACID SPRAY (3 CORR / 1 WEAK)'
+              label: 'ACID SPRAY (4 CORR / 1 WEAK)'
             }
           }
         },
@@ -269,20 +308,20 @@ export const ENEMY_REGISTRY = {
           },
           child: {
             type: 'action',
-            intent: { id: 'venom_flurry', type: 'multi_attack', value: 4, hits: 3, label: 'VENOM FRENZY' }
+            intent: { id: 'venom_flurry', type: 'multi_attack', value: 5, hits: 3, label: 'VENOM FRENZY' }
           }
         },
         {
           type: 'weighted',
           options: [
             {
-              weight: 50,
-              intent: { id: 'toxic_bite', type: 'attack_debuff', value: 7, hits: 1, status: { id: 'corrode', stacks: 2 }, label: 'TOXIC BITE' }
+              weight: 55,
+              intent: { id: 'toxic_bite', type: 'attack_debuff', value: 9, hits: 1, status: { id: 'corrode', stacks: 3 }, label: 'TOXIC BITE' }
             },
             {
-              weight: 50,
+              weight: 45,
               noRepeat: true,
-              intent: { id: 'carapace_molt', type: 'defend_buff', block: 7, status: { id: 'thorns', stacks: 1 }, label: 'CHITIN (+7 SHD / +1 THORN)' }
+              intent: { id: 'carapace_molt', type: 'defend_buff', block: 9, status: { id: 'thorns', stacks: 2 }, label: 'CHITIN (+9 SHD / +2 THORN)' }
             }
           ]
         }
@@ -293,8 +332,8 @@ export const ENEMY_REGISTRY = {
   overlord_core: {
     id: 'overlord_core',
     namePrefix: 'OVERLORD-BOSS',
-    baseHp: 75,
-    hpPerFloor: 10,
+    baseHp: 90,
+    hpPerFloor: 12,
     behaviorTree: {
       type: 'selector',
       children: [
@@ -303,7 +342,7 @@ export const ENEMY_REGISTRY = {
           check: (enemy) => enemy.aiState?.lastMoveId === 'reactor_prime',
           child: {
             type: 'action',
-            intent: { id: 'annihilation_beam', type: 'multi_attack', value: 6, hits: 3, label: 'ANNIHILATION BEAM' }
+            intent: { id: 'annihilation_beam', type: 'multi_attack', value: 7, hits: 3, label: 'ANNIHILATION BEAM' }
           }
         },
         {
@@ -314,9 +353,9 @@ export const ENEMY_REGISTRY = {
             intent: {
               id: 'reactor_prime',
               type: 'defend_buff',
-              block: 12,
-              status: { id: 'strength', stacks: 2 },
-              label: 'PRIME CORE (+12 SHD / +2 STR)'
+              block: 14,
+              status: { id: 'strength', stacks: 3 },
+              label: 'PRIME CORE (+14 SHD / +3 STR)'
             }
           }
         },
@@ -325,11 +364,11 @@ export const ENEMY_REGISTRY = {
           options: [
             {
               weight: 50,
-              intent: { id: 'grav_crush', type: 'attack_debuff', value: 11, hits: 1, status: { id: 'vulnerable', stacks: 2 }, label: 'GRAV CRUSH' }
+              intent: { id: 'grav_crush', type: 'attack_debuff', value: 14, hits: 1, status: { id: 'vulnerable', stacks: 2 }, label: 'GRAV CRUSH' }
             },
             {
               weight: 50,
-              intent: { id: 'bio_barrage', type: 'multi_attack', value: 5, hits: 2, status: { id: 'corrode', stacks: 2 }, label: 'BIO BARRAGE' }
+              intent: { id: 'bio_barrage', type: 'multi_attack', value: 6, hits: 2, status: { id: 'corrode', stacks: 3 }, label: 'BIO BARRAGE' }
             }
           ]
         }

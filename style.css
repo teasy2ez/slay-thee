@@ -114,6 +114,11 @@ input:focus {
   letter-spacing: 0.05em;
   cursor: pointer;
   touch-action: manipulation;
+  transition: transform 0.1s ease, border-color 0.15s ease;
+}
+
+.btn:active {
+  transform: scale(0.97);
 }
 
 .btn.primary {
@@ -127,10 +132,10 @@ input:focus {
 }
 
 .combat-top {
-  height: 35%;
+  height: 36%;
   display: flex;
   flex-direction: column;
-  padding: 8px 16px 4px;
+  padding: 8px 14px 4px;
   gap: 5px;
 }
 
@@ -224,6 +229,7 @@ input:focus {
 }
 
 .potion-slot.filled:active {
+  transform: scale(0.95);
   border-color: var(--text-main);
 }
 
@@ -238,75 +244,121 @@ input:focus {
   color: var(--accent-dmg);
 }
 
+/* Multi-Enemy Container */
 .enemy-container {
   flex: 1;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   justify-content: center;
   align-items: center;
+  gap: 8px;
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px 0;
+}
+
+.enemy-container::-webkit-scrollbar {
+  display: none;
+}
+
+.enemy-unit {
+  flex: 1;
+  min-width: 135px;
+  max-width: 310px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 4px;
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.18s ease, opacity 0.2s ease;
+}
+
+.enemy-unit.dead {
+  opacity: 0.28;
+  pointer-events: none;
+  filter: grayscale(0.9);
 }
 
 .intent-chip {
-  font-size: 0.7rem;
+  font-size: 0.64rem;
   font-weight: 800;
-  letter-spacing: 0.05em;
-  padding: 2px 8px;
-  background: rgba(239, 68, 68, 0.15);
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  background: rgba(239, 68, 68, 0.16);
   border: 1px solid var(--accent-dmg);
   color: var(--accent-dmg);
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .intent-chip.defend {
-  background: rgba(56, 189, 248, 0.15);
+  background: rgba(56, 189, 248, 0.16);
   border-color: var(--accent-shield);
   color: var(--accent-shield);
 }
 
 .intent-chip.debuff {
-  background: rgba(168, 85, 247, 0.15);
+  background: rgba(168, 85, 247, 0.16);
   border-color: var(--accent-weak);
   color: var(--accent-weak);
 }
 
 .intent-chip.attack-debuff {
-  background: rgba(249, 115, 22, 0.15);
+  background: rgba(249, 115, 22, 0.16);
   border-color: var(--accent-vuln);
   color: var(--accent-vuln);
 }
 
 .enemy-card {
   width: 100%;
-  max-width: 340px;
   background: var(--surface);
   border: 1px solid var(--border);
-  padding: 9px 12px;
+  padding: 8px 10px;
   display: flex;
   flex-direction: column;
   gap: 5px;
+  position: relative;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.enemy-unit.targeted .enemy-card {
+  border-color: var(--accent-dmg);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.25);
+}
+
+.target-badge {
+  font-size: 0.56rem;
+  color: var(--accent-dmg);
+  font-weight: 900;
+  letter-spacing: 0.06em;
 }
 
 .enemy-info {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   flex-wrap: wrap;
 }
 
 .entity-name {
-  font-size: 0.8rem;
+  font-size: 0.74rem;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
 }
 
+/* Red Health Bars & Cyan Shield Overlay */
 .meter-bar {
   width: 100%;
   height: 16px;
-  background: #18181b;
+  background: #1c1012;
   position: relative;
   overflow: hidden;
-  border: 1px solid var(--border);
+  border: 1px solid #3f1d24;
 }
 
 .meter-fill {
@@ -314,30 +366,37 @@ input:focus {
   position: absolute;
   left: 0;
   top: 0;
-  transition: width 0.25s ease-out;
+  transition: width 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.hp-color { background: #3f3f46; }
-.shield-color { background: var(--accent-shield); opacity: 0.85; }
+.hp-color {
+  background: linear-gradient(90deg, #b91c1c, #ef4444);
+}
+
+.shield-color {
+  background: rgba(56, 189, 248, 0.58);
+  border-right: 2px solid #7dd3fc;
+}
 
 .meter-label {
   position: absolute;
   width: 100%;
   text-align: center;
-  font-size: 0.65rem;
+  font-size: 0.63rem;
   line-height: 16px;
-  font-weight: bold;
+  font-weight: 800;
   color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
 }
 
 .status-tags {
   display: flex;
-  gap: 4px;
+  gap: 3px;
   flex-wrap: wrap;
 }
 
 .tag {
-  font-size: 0.58rem;
+  font-size: 0.55rem;
   padding: 1px 4px;
   font-weight: 700;
   border: 1px solid var(--border);
@@ -350,7 +409,7 @@ input:focus {
 .tag.thorns { color: var(--accent-thorns); border-color: var(--accent-thorns); }
 
 .combat-mid {
-  height: 15%;
+  height: 14%;
   padding: 0 16px;
   display: flex;
 }
@@ -387,6 +446,7 @@ input:focus {
   align-items: center;
   gap: 10px;
   padding: 0 16px;
+  position: relative;
 }
 
 .energy-bubble {
@@ -416,6 +476,7 @@ input:focus {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  position: relative;
 }
 
 .vitals-top-row {
@@ -463,7 +524,7 @@ input:focus {
   flex-direction: column;
   justify-content: space-between;
   cursor: pointer;
-  transition: transform 0.12s ease;
+  transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.15s ease, opacity 0.15s ease;
 }
 
 .card-item.exhaust-card {
@@ -478,8 +539,13 @@ input:focus {
   color: var(--accent-upgrade);
 }
 
+.card-item:hover {
+  transform: translateY(-4px);
+  border-color: var(--border-focus);
+}
+
 .card-item:active {
-  transform: scale(0.96);
+  transform: translateY(-10px) scale(0.96);
   border-color: var(--text-main);
 }
 
@@ -535,21 +601,83 @@ input:focus {
   font-weight: 700;
 }
 
-/* Overlays: Boot Relic, Sector Map & Post-Encounter Loot */
+/* ==========================================================================
+   Reactive Combat Animations & Floating Popups
+   ========================================================================== */
+@keyframes hitShake {
+  0% { transform: translateX(0); }
+  20% { transform: translateX(-7px) scale(0.98); filter: brightness(1.6); }
+  45% { transform: translateX(7px); }
+  70% { transform: translateX(-4px); }
+  100% { transform: translateX(0) scale(1); filter: brightness(1); }
+}
+
+@keyframes shieldPulse {
+  0% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.7); }
+  50% { box-shadow: 0 0 14px 3px rgba(56, 189, 248, 0.65); }
+  100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); }
+}
+
+@keyframes enemyLunge {
+  0% { transform: translateY(0); }
+  35% { transform: translateY(14px) scale(1.04); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+@keyframes floatPopUp {
+  0% { opacity: 1; transform: translate(-50%, 0) scale(0.85); }
+  30% { opacity: 1; transform: translate(-50%, -12px) scale(1.08); }
+  100% { opacity: 0; transform: translate(-50%, -28px) scale(0.95); }
+}
+
+.anim-hit {
+  animation: hitShake 0.36s ease-out;
+}
+
+.anim-shield {
+  animation: shieldPulse 0.42s ease-out;
+}
+
+.anim-lunge {
+  animation: enemyLunge 0.34s ease-out;
+}
+
+.floating-pop {
+  position: absolute;
+  left: 50%;
+  top: 2px;
+  font-size: 0.78rem;
+  font-weight: 900;
+  padding: 1px 6px;
+  background: rgba(9, 9, 11, 0.85);
+  border: 1px solid currentColor;
+  pointer-events: none;
+  z-index: 25;
+  white-space: nowrap;
+  animation: floatPopUp 0.85s ease-out forwards;
+}
+
+.floating-pop.dmg-pop { color: #f87171; }
+.floating-pop.shd-pop { color: #38bdf8; }
+.floating-pop.heal-pop { color: #4ade80; }
+
+/* ==========================================================================
+   Overlays & Visual Branching Tree Map
+   ========================================================================== */
 .overlay-modal {
   position: absolute;
   inset: 0;
-  background: rgba(9, 9, 11, 0.92);
+  background: rgba(9, 9, 11, 0.93);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 14px;
+  padding: 12px;
   z-index: 30;
 }
 
 .overlay-panel {
   width: 100%;
-  max-width: 440px;
+  max-width: 460px;
   max-height: 92dvh;
   background: var(--surface);
   border: 1px solid var(--border-focus);
@@ -648,17 +776,9 @@ input:focus {
   border-color: var(--text-main);
 }
 
-.reward-option.relic-opt {
-  border-color: var(--accent-shield);
-}
-
-.reward-option.potion-opt {
-  border-color: var(--accent-dex);
-}
-
-.reward-option.upgrade-opt {
-  border-color: var(--accent-upgrade);
-}
+.reward-option.relic-opt { border-color: var(--accent-shield); }
+.reward-option.potion-opt { border-color: var(--accent-dex); }
+.reward-option.upgrade-opt { border-color: var(--accent-upgrade); }
 
 .reward-opt-top {
   display: flex;
@@ -672,101 +792,138 @@ input:focus {
   color: var(--text-muted);
 }
 
-/* Branching Map Nodes */
-.map-nodes-container {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+/* Visual Branching Tree Map */
+.map-scroll-viewport {
+  width: 100%;
+  height: 72dvh;
   overflow-y: auto;
-  max-height: 74dvh;
-  padding: 4px 2px;
+  overflow-x: hidden;
+  background: #0c0c0f;
+  border: 1px solid var(--border);
+  position: relative;
 }
 
-.map-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 6px;
-  border: 1px solid transparent;
-  background: rgba(24, 24, 27, 0.4);
+.map-tree-canvas {
+  position: relative;
+  width: 100%;
+  height: 780px;
 }
 
-.map-row.active-row {
-  border-color: var(--accent-energy);
-  background: rgba(234, 179, 8, 0.08);
+.map-tree-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
 }
 
-.map-floor-label {
-  font-size: 0.62rem;
+.tree-edge {
+  stroke: #27272a;
+  stroke-width: 2;
+  stroke-dasharray: 4 4;
+}
+
+.tree-edge.visited-edge {
+  stroke: var(--accent-shield);
+  stroke-width: 2.5;
+  stroke-dasharray: none;
+}
+
+.tree-edge.selectable-edge {
+  stroke: var(--accent-energy);
+  stroke-width: 2.5;
+  stroke-dasharray: none;
+}
+
+.map-nodes-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+}
+
+.map-floor-marker {
+  position: absolute;
+  left: 6px;
+  transform: translateY(-50%);
+  font-size: 0.56rem;
   font-weight: 800;
-  color: var(--text-muted);
-  width: 34px;
-  flex-shrink: 0;
+  color: #52525b;
+  letter-spacing: 0.05em;
 }
 
-.map-row-nodes {
-  flex: 1;
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.map-node-btn {
-  flex: 1;
-  min-width: 82px;
-  padding: 7px 6px;
-  font-size: 0.62rem;
+.map-tree-node {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  min-width: 84px;
+  padding: 5px 7px;
+  font-size: 0.58rem;
   font-weight: 800;
-  background: var(--surface-raised);
+  background: #141418;
   border: 1px solid var(--border);
   color: var(--text-muted);
   text-align: center;
-  opacity: 0.45;
+  opacity: 0.42;
   pointer-events: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
-.map-node-btn.visited {
-  opacity: 0.65;
+.map-tree-node.visited {
+  opacity: 0.78;
   border-color: var(--accent-shield);
   color: var(--accent-shield);
 }
 
-.map-node-btn.current-node {
+.map-tree-node.current-node {
   opacity: 1;
-  border-color: var(--text-main);
+  border: 2px solid var(--text-main);
   color: var(--text-main);
+  box-shadow: 0 0 10px rgba(250, 250, 250, 0.35);
 }
 
-.map-node-btn.selectable {
+@keyframes pulseNode {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(234, 179, 8, 0.45); }
+  50% { box-shadow: 0 0 12px 3px rgba(234, 179, 8, 0.55); }
+}
+
+.map-tree-node.selectable {
   opacity: 1;
   pointer-events: auto;
   cursor: pointer;
-  border-color: var(--accent-energy);
+  border: 1.5px solid var(--accent-energy);
   color: var(--text-main);
-  background: #1f1f24;
+  background: #1c1c22;
+  animation: pulseNode 1.8s infinite ease-in-out;
 }
 
-.map-node-btn.selectable.node-anomaly {
+.map-tree-node.selectable:hover,
+.map-tree-node.selectable:active {
+  transform: translate(-50%, -50%) scale(1.07);
+}
+
+.map-tree-node.selectable.node-anomaly {
   border-color: var(--accent-dmg);
   color: #fca5a5;
 }
 
-.map-node-btn.selectable.node-elite {
+.map-tree-node.selectable.node-elite {
   border-color: var(--accent-vuln);
   color: #fdba74;
 }
 
-.map-node-btn.selectable.node-upgrade {
+.map-tree-node.selectable.node-upgrade {
   border-color: var(--accent-upgrade);
   color: #86efac;
 }
 
-.map-node-btn.selectable.node-treasure {
+.map-tree-node.selectable.node-treasure {
   border-color: var(--accent-shield);
   color: #7dd3fc;
 }
 
-.map-node-btn.selectable.node-boss {
+.map-tree-node.selectable.node-boss {
   border-color: var(--accent-weak);
   color: #d8b4fe;
 }
