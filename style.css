@@ -80,7 +80,7 @@ body, html {
 
 .lobby-card {
   width: 100%;
-  max-width: 500px;
+  max-width: 740px;
   max-height: 94dvh;
   overflow-y: auto;
   background: var(--surface);
@@ -1395,4 +1395,310 @@ input:focus {
   .combat-mid {
     min-height: 36px;
   }
+}
+
+
+/* ==========================================================================
+   Start Run Menu (Mission Briefing) & Run End Stats Screen
+   ========================================================================== */
+.input-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field-label {
+  font-size: 0.6rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+}
+
+.config-hint {
+  font-size: 0.58rem;
+  font-weight: 800;
+  color: var(--accent-shield);
+  letter-spacing: 0.06em;
+}
+
+.class-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 8px;
+}
+
+.class-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 10px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-focus);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-main);
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.class-card:hover {
+  border-color: var(--text-main);
+}
+
+.class-card.active {
+  border-color: var(--accent-shield);
+  background: rgba(56, 189, 248, 0.14);
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.22);
+}
+
+.class-card-art {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  background: #090b10;
+  border: 1px solid var(--border-focus);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.class-card-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.class-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+
+.class-card-name {
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.class-card-stats {
+  font-size: 0.6rem;
+  font-weight: 800;
+  color: var(--accent-energy);
+  white-space: nowrap;
+}
+
+.class-card-title {
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--accent-shield);
+}
+
+.class-card-passive {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  line-height: 1.28;
+  margin-top: 2px;
+}
+
+.threat-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  padding: 0;
+  background: #1e293b;
+  border: none;
+  border-radius: 999px;
+  outline: none;
+  cursor: pointer;
+}
+
+.threat-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent-dmg);
+  border: 2px solid #fff;
+  cursor: pointer;
+}
+
+.threat-preview {
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: #fecaca;
+  background: rgba(239, 68, 68, 0.09);
+  border-left: 3px solid var(--accent-dmg);
+  padding: 5px 8px;
+  border-radius: 0 4px 4px 0;
+}
+
+.mutator-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 6px;
+}
+
+.mutator-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px 9px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-main);
+  transition: border-color 0.14s ease, background 0.14s ease;
+}
+
+.mutator-card:hover {
+  border-color: var(--border-focus);
+}
+
+.mutator-card.active-mutator {
+  border-color: var(--accent-weak);
+  background: rgba(192, 132, 252, 0.16);
+  box-shadow: 0 0 12px rgba(192, 132, 252, 0.2);
+}
+
+.mutator-card-name {
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.mutator-card-desc {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  line-height: 1.25;
+}
+
+.lobby-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.lobby-actions .btn {
+  flex: 1 1 200px;
+}
+
+/* HUD Top Meta Grouping & Card Type Top Accents */
+.top-meta-left,
+.top-meta-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hud-mini-btn.danger-mini {
+  border-color: rgba(239, 68, 68, 0.65);
+  color: #fecaca;
+}
+
+.card-item[data-type="attack"] { border-top: 3px solid var(--accent-dmg); }
+.card-item[data-type="skill"] { border-top: 3px solid var(--accent-shield); }
+.card-item[data-type="power"] { border-top: 3px solid var(--accent-energy); }
+.card-item[data-type="curse"] { border-top: 3px solid var(--accent-weak); }
+
+/* Run End & Stats Summary Screen */
+.run-end-panel {
+  max-width: 600px;
+  gap: 12px;
+}
+
+.run-end-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: rgba(7, 8, 12, 0.78);
+  border: 1px solid var(--border-focus);
+  border-radius: var(--radius-md);
+}
+
+.run-end-banner.victory {
+  border-color: var(--accent-upgrade);
+  background: rgba(74, 222, 128, 0.08);
+}
+
+.run-end-banner.defeat {
+  border-color: var(--accent-dmg);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.run-end-avatar {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  background: #090b10;
+  border: 1px solid var(--border-focus);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.run-end-title {
+  font-size: clamp(0.95rem, 3vw, 1.18rem);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.run-end-banner.victory .run-end-title { color: var(--accent-upgrade); }
+.run-end-banner.defeat .run-end-title { color: var(--accent-dmg); }
+
+.run-end-subtitle {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.run-end-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
+  gap: 8px;
+}
+
+.stat-card {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.stat-label {
+  font-size: 0.58rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+}
+
+.stat-value {
+  font-size: 0.92rem;
+  font-weight: 900;
+  color: var(--text-main);
+}
+
+.run-end-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.run-end-actions .btn {
+  flex: 1 1 200px;
 }

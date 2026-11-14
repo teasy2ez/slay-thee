@@ -37,6 +37,7 @@ import {
   claimLootItemTransaction,
   skipRemainingLootTransaction,
   endTurnTransaction,
+  abandonRunTransaction,
   formatTelegraphedIntent,
   createBattleContext,
   loadCareerProfile
@@ -92,16 +93,19 @@ const careerBadge = document.getElementById('career-badge');
 const nameInput = document.getElementById('player-name-input');
 const roomInput = document.getElementById('room-code-input');
 const classSelector = document.getElementById('class-selector');
-const classDesc = document.getElementById('class-desc');
 const btnThreatDown = document.getElementById('btn-threat-down');
 const btnThreatUp = document.getElementById('btn-threat-up');
 const threatVal = document.getElementById('threat-val');
+const threatSlider = document.getElementById('threat-slider');
+const threatPreview = document.getElementById('threat-preview');
 const mutatorSelector = document.getElementById('mutator-selector');
+const mutatorCountBadge = document.getElementById('mutator-count-badge');
 const btnJoin = document.getElementById('btn-join');
 const btnSolo = document.getElementById('btn-solo');
 
 // UI Handles — HUD & Combat
 const btnEndTurn = document.getElementById('btn-end-turn');
+const btnEndRun = document.getElementById('btn-end-run');
 const roomBadge = document.getElementById('room-badge');
 const floorBadge = document.getElementById('floor-badge');
 const creditsBadge = document.getElementById('credits-badge');
@@ -155,6 +159,15 @@ const deckFilterTabs = document.getElementById('deck-filter-tabs');
 const deckCardsList = document.getElementById('deck-cards-list');
 const btnCloseDeck = document.getElementById('btn-close-deck');
 
+const runEndModal = document.getElementById('run-end-modal');
+const runEndAvatar = document.getElementById('run-end-avatar');
+const runEndTitle = document.getElementById('run-end-title');
+const runEndSubtitle = document.getElementById('run-end-subtitle');
+const runEndStats = document.getElementById('run-end-stats');
+const runEndRelics = document.getElementById('run-end-relics');
+const btnPlayAgain = document.getElementById('btn-play-again');
+const btnReturnLobby = document.getElementById('btn-return-lobby');
+
 // ----------------------------------------------------------------------------
 // 0. Lobby Class, Threat Level, Mutator & Career Profile Initialization
 // ----------------------------------------------------------------------------
@@ -168,33 +181,50 @@ function renderCareerBadge() {
 function initLobbyControls() {
   renderCareerBadge();
 
-  // Operative Class Chips
+  // Operative Class Cards
   if (classSelector) {
     const refreshClassUI = () => {
       classSelector.innerHTML = '';
       for (const cls of Object.values(OPERATIVE_CLASSES)) {
-        const chip = document.createElement('button');
-        chip.type = 'button';
-        chip.className = `config-chip ${cls.id === selectedClassId ? 'active' : ''}`.trim();
-        chip.innerHTML = `<span class="inline-svg-icon">${getClassArtSvg(cls.id)}</span><span>${cls.name}</span>`;
-        chip.addEventListener('click', () => {
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = `class-card ${cls.id === selectedClassId ? 'active' : ''}`.trim();
+        card.innerHTML = `
+          <div class="class-card-art">${getClassArtSvg(cls.id)}</div>
+          <div class="class-card-info">
+            <div class="class-card-head">
+              <span class="class-card-name">${cls.name}</span>
+              <span class="class-card-stats">${cls.maxHp} HP · ${cls.startingCredits} CR</span>
+            </div>
+            <div class="class-card-title">${cls.title}</div>
+            <div class="class-card-passive">${cls.passiveDesc}</div>
+          </div>
+        `;
+        card.addEventListener('click', () => {
           selectedClassId = cls.id;
           refreshClassUI();
         });
-        classSelector.appendChild(chip);
-      }
-      const currentCls = OPERATIVE_CLASSES[selectedClassId] || OPERATIVE_CLASSES.vanguard;
-      if (classDesc) {
-        classDesc.textContent = `${currentCls.title} (${currentCls.maxHp} HP · ${currentCls.startingCredits} CR): ${currentCls.passiveDesc}`;
+        classSelector.appendChild(card);
       }
     };
     refreshClassUI();
   }
 
-  // Threat Level Stepper (0 - 10)
+  // Threat Level Stepper + Slider + Live Modifier Preview (0 - 10)
   const updateThreatDisplay = () => {
-    if (!threatVal) return;
-    threatVal.textContent = `LVL ${selectedThreatLevel}`;
+    if (threatVal) threatVal.textContent = `LVL ${selectedThreatLevel}`;
+    if (threatSlider) threatSlider.value = String(selectedThreatLevel);
+    if (threatPreview) {
+      if (selectedThreatLevel === 0) {
+        threatPreview.textContent = 'STANDARD DIFFICULTY · Normal enemy HP & damage';
+      } else {
+        const mods = [`+${selectedThreatLevel * 8}% Enemy HP`];
+        if (selectedThreatLevel >= 7) mods.push('+2 Enemy STR');
+        else if (selectedThreatLevel >= 3) mods.push('+1 Enemy STR');
+        if (selectedThreatLevel >= 5) mods.push('+4 Enemy Starting Shield');
+        threatPreview.textContent = `THREAT ${selectedThreatLevel}: ${mods.join(' · ')}`;
+      }
+    }
   };
   if (btnThreatDown) {
     btnThreatDown.addEventListener('click', () => {
@@ -208,20 +238,28 @@ function initLobbyControls() {
       updateThreatDisplay();
     });
   }
+  if (threatSlider) {
+    threatSlider.addEventListener('input', (e) => {
+      selectedThreatLevel = Math.max(0, Math.min(10, parseInt(e.target.value, 10) || 0));
+      updateThreatDisplay();
+    });
+  }
   updateThreatDisplay();
 
-  // Run Mutator Toggle Chips
+  // Run Mutator Toggle Cards (with inline descriptions)
   if (mutatorSelector) {
     const refreshMutatorUI = () => {
       mutatorSelector.innerHTML = '';
       for (const mut of Object.values(RUN_MUTATORS)) {
         const isOn = selectedMutators.has(mut.id);
-        const chip = document.createElement('button');
-        chip.type = 'button';
-        chip.className = `config-chip ${isOn ? 'active-mutator' : ''}`.trim();
-        chip.textContent = `${mut.icon} ${mut.name}`;
-        chip.title = mut.description;
-        chip.addEventListener('click', () => {
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = `mutator-card ${isOn ? 'active-mutator' : ''}`.trim();
+        card.innerHTML = `
+          <div class="mutator-card-name">${mut.icon} ${mut.name}</div>
+          <div class="mutator-card-desc">${mut.description}</div>
+        `;
+        card.addEventListener('click', () => {
           if (selectedMutators.has(mut.id)) {
             selectedMutators.delete(mut.id);
           } else {
@@ -229,7 +267,10 @@ function initLobbyControls() {
           }
           refreshMutatorUI();
         });
-        mutatorSelector.appendChild(chip);
+        mutatorSelector.appendChild(card);
+      }
+      if (mutatorCountBadge) {
+        mutatorCountBadge.textContent = `${selectedMutators.size} ACTIVE`;
       }
     };
     refreshMutatorUI();
@@ -457,11 +498,43 @@ if (btnSkipReward) {
   btnSkipReward.addEventListener('click', skipRemainingLoot);
 }
 
-// 10. End Player Turn
+// 10. End Player Turn & End Run Actions
 async function endTurn() {
   if (!currentGameState || currentGameState.phase !== 'combat') return;
   await mutateGameState((data) => {
     return endTurnTransaction(data, myPlayerId);
+  });
+}
+
+async function endCurrentRun() {
+  if (!currentGameState || currentGameState.phase === 'run_end') return;
+  await mutateGameState((data) => {
+    return abandonRunTransaction(data, myPlayerId);
+  });
+}
+
+if (btnEndRun) {
+  btnEndRun.addEventListener('click', endCurrentRun);
+}
+
+if (btnPlayAgain) {
+  btnPlayAgain.addEventListener('click', () => {
+    if (runEndModal) runEndModal.classList.add('hidden');
+    if (isLocalSoloMode) {
+      startSoloMission();
+    } else {
+      startGame();
+    }
+  });
+}
+
+if (btnReturnLobby) {
+  btnReturnLobby.addEventListener('click', () => {
+    if (runEndModal) runEndModal.classList.add('hidden');
+    combatScreen.classList.add('hidden');
+    lobbyScreen.classList.remove('hidden');
+    currentGameState = null;
+    renderCareerBadge();
   });
 }
 
@@ -923,6 +996,79 @@ function renderEventModal(state) {
   }
 }
 
+/**
+ * Renders the Run End & Post-Run Stats Summary Overlay (`phase: 'run_end'`).
+ */
+function renderRunEndModal(state, me) {
+  if (!runEndModal || !runEndStats) return;
+  runEndModal.classList.remove('hidden');
+
+  const stats = state.runStats || {};
+  const isVictory = stats.outcome === 'victory';
+  const banner = runEndModal.querySelector('.run-end-banner');
+  if (banner) {
+    banner.classList.remove('victory', 'defeat');
+    banner.classList.add(isVictory ? 'victory' : 'defeat');
+  }
+
+  if (runEndAvatar && me) {
+    runEndAvatar.innerHTML = getClassArtSvg(me.classId || 'vanguard');
+  }
+  if (runEndTitle) {
+    runEndTitle.textContent = isVictory
+      ? 'SECTOR CLEARED // EXTRACTION COMPLETE'
+      : (stats.outcome === 'retreated' ? 'RUN CONCLUDED // SIGNAL CLOSED' : 'MISSION TERMINATED // SIGNAL LOST');
+  }
+  if (runEndSubtitle) {
+    runEndSubtitle.textContent = stats.causeOfEnd || `Reached Sector ${state.sectorNumber || 1}, Floor ${state.floor || 1}`;
+  }
+
+  const elapsedMs = Math.max(0, (stats.endedAt || Date.now()) - (stats.startedAt || Date.now()));
+  const totalSec = Math.floor(elapsedMs / 1000);
+  const mins = Math.floor(totalSec / 60);
+  const secs = String(totalSec % 60).padStart(2, '0');
+
+  const statItems = [
+    { label: 'OPERATIVE', value: `${me?.className || 'OPERATIVE'} (T${state.threatLevel || 0})` },
+    { label: 'REACHED', value: `S${state.sectorNumber || 1} · FL ${state.floor || 1}` },
+    { label: 'DURATION', value: `${mins}m ${secs}s` },
+    { label: 'FLOORS CLEARED', value: `${stats.floorsCleared || 0}` },
+    { label: 'ENEMIES DEFEATED', value: `${stats.enemiesDefeated || 0}` },
+    { label: 'CARDS PLAYED', value: `${stats.cardsPlayed || 0}` },
+    { label: 'DAMAGE DEALT', value: `${stats.damageDealt || 0}` },
+    { label: 'DAMAGE TAKEN', value: `${stats.damageTaken || 0}` },
+    { label: 'SHIELD GENERATED', value: `${stats.shieldGained || 0}` },
+    { label: 'CREDITS EARNED', value: `${stats.creditsEarned || 0} CR` },
+    { label: 'POTIONS USED', value: `${stats.potionsUsed || 0}` },
+    { label: 'FINAL DECK', value: `${me?.masterDeck?.length || 0} CARDS` }
+  ];
+
+  runEndStats.innerHTML = statItems.map(s => `
+    <div class="stat-card">
+      <span class="stat-label">${s.label}</span>
+      <span class="stat-value">${s.value}</span>
+    </div>
+  `).join('');
+
+  if (runEndRelics && me) {
+    runEndRelics.innerHTML = '';
+    const relics = me.relics || [];
+    if (relics.length === 0) {
+      runEndRelics.innerHTML = `<span class="relic-chip">NONE ACQUIRED</span>`;
+    } else {
+      for (const rState of relics) {
+        const rDef = RELIC_REGISTRY[rState.id];
+        if (!rDef) continue;
+        const chip = document.createElement('div');
+        chip.className = 'relic-chip';
+        chip.innerHTML = `<span class="inline-svg-icon">${getRelicArtSvg(rDef)}</span><span>${rDef.name}</span>`;
+        chip.title = rDef.description;
+        runEndRelics.appendChild(chip);
+      }
+    }
+  }
+}
+
 // 12. Render State to DOM
 function renderState(state, prevState = null) {
   if (bootRelicModal) bootRelicModal.classList.add('hidden');
@@ -930,6 +1076,7 @@ function renderState(state, prevState = null) {
   if (rewardModal) rewardModal.classList.add('hidden');
   if (shopModal) shopModal.classList.add('hidden');
   if (eventModal) eventModal.classList.add('hidden');
+  if (runEndModal) runEndModal.classList.add('hidden');
 
   if (state.phase === 'lobby') {
     floorBadge.textContent = 'LOBBY READY';
@@ -1137,6 +1284,7 @@ function renderState(state, prevState = null) {
       const exhaustClass = def.exhaust ? 'exhaust-card' : '';
       const upgradedClass = def.upgraded ? 'upgraded-card' : '';
       cardEl.className = `card-item ${disabledClass} ${exhaustClass} ${upgradedClass}`.trim();
+      cardEl.dataset.type = def.type || 'skill';
       cardEl.innerHTML = `
         <div class="card-top">
           <span class="card-cost">${isUnplayable ? '×' : effCost}</span>
@@ -1156,6 +1304,14 @@ function renderState(state, prevState = null) {
     // Trigger Reactive Combat Animations on State Transitions
     if (prevState) {
       triggerCombatAnimations(prevState, state);
+    }
+
+    // ------------------------------------------------------------------------
+    // OVERLAY 0: Run End & Stats Summary (`run_end`)
+    // ------------------------------------------------------------------------
+    if (state.phase === 'run_end') {
+      renderRunEndModal(state, me);
+      return;
     }
 
     // ------------------------------------------------------------------------

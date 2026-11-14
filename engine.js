@@ -375,6 +375,11 @@ export function createBattleContext(state, activePlayer = null, activeTarget = n
       actualTarget.shield = res.finalShield;
       actualTarget.hp = res.finalHp;
 
+      if (state?.runStats) {
+        if (source?.masterDeck) state.runStats.damageDealt = (state.runStats.damageDealt || 0) + finalDmg;
+        if (actualTarget?.masterDeck) state.runStats.damageTaken = (state.runStats.damageTaken || 0) + res.hpDamage;
+      }
+
       const label = options.sourceName || options.card?.name || source?.name || 'Attack';
       ctx.log(`[ATK] ${source?.name || label} -> ${actualTarget.name}: ${finalDmg} dmg (${res.shieldDamage > 0 ? `🛡️-${res.shieldDamage} ` : ''}HP -${res.hpDamage}).`);
 
@@ -435,6 +440,9 @@ export function createBattleContext(state, activePlayer = null, activeTarget = n
         : runModifierHook('modifyBlockGained', baseBlock, { entity, card: options.card }, state);
 
       entity.shield = (entity.shield || 0) + finalBlock;
+      if (state?.runStats && entity?.masterDeck) {
+        state.runStats.shieldGained = (state.runStats.shieldGained || 0) + finalBlock;
+      }
       const tag = options.sourceName ? `[SHIELD] ${options.sourceName}` : `[SHIELD] ${entity.name}`;
       ctx.log(`${tag} gained +${finalBlock} Shield.`);
       return finalBlock;
@@ -863,6 +871,21 @@ export function beginRunFromLobby(state, options = {}) {
   state.phase = 'boot_relic';
   state.map = generateSectorMap(12, state.mutators);
   state.enemies = [];
+  state.runStats = {
+    startedAt: Date.now(),
+    endedAt: null,
+    outcome: null,
+    causeOfEnd: '',
+    floorsCleared: 0,
+    sectorsCleared: 0,
+    enemiesDefeated: 0,
+    cardsPlayed: 0,
+    potionsUsed: 0,
+    creditsEarned: 0,
+    damageDealt: 0,
+    damageTaken: 0,
+    shieldGained: 0
+  };
 
   const isDraft = state.mutators.includes('draft_protocol');
   for (const pid in state.players) {
@@ -1012,6 +1035,14 @@ export function resolveEventChoiceTransaction(state, playerId, choiceId) {
   const ctx = createBattleContext(state, p, null);
   const summary = choice.resolve(p, state, ctx);
   ctx.log(`[EVENT] ${evDef.title}: ${summary}`);
+
+  if (p.hp <= 0) {
+    p.hp = 0;
+    p.isAlive = false;
+  }
+  if (checkAndHandleRunDefeat(state, `Fallen during ${evDef.title}`)) {
+    return true;
+  }
 
   checkAndAdvanceToMap(state);
   return true;
@@ -1203,6 +1234,9 @@ export function playCardTransaction(state, playerId, cardInstanceId, targetEnemy
   updateCareerStat(prof => {
     prof.cardsPlayed = (prof.cardsPlayed || 0) + 1;
   });
+  if (state.runStats) {
+    state.runStats.cardsPlayed = (state.runStats.cardsPlayed || 0) + 1;
+  }
 
   triggerHook('onCardPlayed', {
     player: me,
@@ -1219,6 +1253,7 @@ export function playCardTransaction(state, playerId, cardInstanceId, targetEnemy
   }
 
   checkAndHandleFloorVictory(state);
+  checkAndHandleRunDefeat(state, `Fallen on Floor ${state.floor}`);
   return true;
 }
 
@@ -1239,6 +1274,9 @@ export function usePotionTransaction(state, playerId, slotIdx, targetEnemyIdx = 
   const ctx = createBattleContext(state, me, target);
 
   me.potions[slotIdx] = null;
+  if (state.runStats) {
+    state.runStats.potionsUsed = (state.runStats.potionsUsed || 0) + 1;
+  }
   ctx.log(`[POTION] ${me.name} used ${pDef.name}!`);
   pDef.onUse(ctx);
 
@@ -1280,6 +1318,15 @@ export function checkAndHandleFloorVictory(state) {
   const bountyMult = (Array.isArray(state.mutators) && state.mutators.includes('elite_bounty')) ? 1.5 : 1.0;
   const baseCredits = roomType === 'boss' ? 75 : (roomType === 'elite' ? 45 : (roomType === 'anomaly' ? 50 : 24));
   const earnedCredits = Math.floor((baseCredits + (state.floor || 1) * 3) * bountyMult);
+
+  if (state.runStats) {
+    state.runStats.floorsCleared = (state.runStats.floorsCleared || 0) + 1;
+    state.runStats.enemiesDefeated = (state.runStats.enemiesDefeated || 0) + (state.enemies?.length || 1);
+    state.runStats.creditsEarned = (state.runStats.creditsEarned || 0) + earnedCredits;
+    if (roomType === 'boss' && (state.floor || 1) >= 12) {
+      state.runStats.sectorsCleared = (state.runStats.sectorsCleared || 0) + 1;
+    }
+  }
 
   updateCareerStat(prof => {
     prof.enemiesDefeated = (prof.enemiesDefeated || 0) + (state.enemies?.length || 1);
@@ -1488,6 +1535,37 @@ export function claimPlayerReward(state, playerId, rewardType) {
 // 8. End Player Turn & Multi-Enemy Round Resolution
 // ----------------------------------------------------------------------------
 
+export function checkAndHandleRunDefeat(state, cause = 'Squad eliminated in combat') {
+  if (!state || state.phase === 'run_end') return false;
+  const players = Object.values(state.players || {});
+  if (players.length === 0) return false;
+  const stillAlive = players.filter(p => p.isAlive && p.hp > 0);
+  if (stillAlive.length > 0) return false;
+
+  state.phase = 'run_end';
+  if (!state.runStats) state.runStats = {};
+  state.runStats.endedAt = Date.now();
+  state.runStats.outcome = (state.runStats.sectorsCleared || 0) > 0 ? 'victory' : 'defeat';
+  state.runStats.causeOfEnd = cause;
+  if (!state.combatLog) state.combatLog = [];
+  state.combatLog.push(`[RUN END] ${cause} (Sector ${state.sectorNumber || 1} · Floor ${state.floor || 1}).`);
+  return true;
+}
+
+export function abandonRunTransaction(state, playerId) {
+  if (!state || state.phase === 'lobby' || state.phase === 'run_end') return false;
+  state.phase = 'run_end';
+  if (!state.runStats) state.runStats = {};
+  state.runStats.endedAt = Date.now();
+  state.runStats.outcome = (state.runStats.sectorsCleared || 0) > 0 ? 'victory' : 'retreated';
+  state.runStats.causeOfEnd = (state.runStats.sectorsCleared || 0) > 0
+    ? `Extracted after clearing ${state.runStats.sectorsCleared} Sector(s)`
+    : `Run ended by Operative on Sector ${state.sectorNumber || 1}, Floor ${state.floor || 1}`;
+  if (!state.combatLog) state.combatLog = [];
+  state.combatLog.push(`[RUN END] ${state.runStats.causeOfEnd}.`);
+  return true;
+}
+
 export function endTurnTransaction(state, playerId) {
   if (!state || state.phase !== 'combat') return false;
   const me = state.players?.[playerId];
@@ -1524,18 +1602,7 @@ export function endTurnTransaction(state, playerId) {
       return true;
     }
 
-    const stillAlive = Object.values(state.players).filter(p => p.isAlive);
-    if (stillAlive.length === 0) {
-      state.combatLog.push(`[DEFEAT] Squad wiped on Floor ${state.floor}. Rebooting Sector...`);
-      for (const pid in state.players) {
-        const pl = state.players[pid];
-        pl.hp = pl.maxHp;
-        pl.isAlive = true;
-        pl.pendingLoot = null;
-      }
-      state.sectorNumber = 1;
-      state.map = generateSectorMap(12, state.mutators);
-      state.phase = 'map';
+    if (checkAndHandleRunDefeat(state, `Eliminated on Sector ${state.sectorNumber || 1}, Floor ${state.floor || 1}`)) {
       return true;
     }
 
