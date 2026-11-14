@@ -194,9 +194,9 @@ function initLobbyControls() {
           <div class="class-card-info">
             <div class="class-card-head">
               <span class="class-card-name">${cls.name}</span>
-              <span class="class-card-stats">${cls.maxHp} HP · ${cls.startingCredits} CR</span>
+              <span class="class-card-stats">${cls.maxHp} HP · ${cls.startingCredits} G</span>
             </div>
-            <div class="class-card-title">${cls.title}</div>
+            <div class="class-card-title">${cls.title || cls.subtitle}</div>
             <div class="class-card-passive">${cls.passiveDesc}</div>
           </div>
         `;
@@ -216,13 +216,13 @@ function initLobbyControls() {
     if (threatSlider) threatSlider.value = String(selectedThreatLevel);
     if (threatPreview) {
       if (selectedThreatLevel === 0) {
-        threatPreview.textContent = 'STANDARD DIFFICULTY · Normal enemy HP & damage';
+        threatPreview.textContent = 'NORMAL REALM · Standard foe HP & might';
       } else {
-        const mods = [`+${selectedThreatLevel * 8}% Enemy HP`];
-        if (selectedThreatLevel >= 7) mods.push('+2 Enemy STR');
-        else if (selectedThreatLevel >= 3) mods.push('+1 Enemy STR');
-        if (selectedThreatLevel >= 5) mods.push('+4 Enemy Starting Shield');
-        threatPreview.textContent = `THREAT ${selectedThreatLevel}: ${mods.join(' · ')}`;
+        const mods = [`+${selectedThreatLevel * 8}% Foe HP`];
+        if (selectedThreatLevel >= 7) mods.push('+2 Foe Might');
+        else if (selectedThreatLevel >= 3) mods.push('+1 Foe Might');
+        if (selectedThreatLevel >= 5) mods.push('+4 Foe Starting Block');
+        threatPreview.textContent = `MYTHIC TIER ${selectedThreatLevel}: ${mods.join(' · ')}`;
       }
     }
   };
@@ -713,7 +713,7 @@ function renderBranchingTreeMap(mapState, sectorNum = 1) {
   const selectableIds = new Set(getSelectableNodeIds(mapState));
   const nextFloor = (mapState.currentFloor || 0) + 1;
   if (mapProgressBadge) {
-    mapProgressBadge.textContent = `SECTOR ${sectorNum} · FLOOR ${nextFloor} / ${mapState.totalFloors || 12}`;
+    mapProgressBadge.textContent = `REALM ${sectorNum} · STAGE ${nextFloor} / ${mapState.totalFloors || 12}`;
   }
 
   const totalRows = mapState.rows?.length || 12;
@@ -818,7 +818,7 @@ function renderShopModal(me) {
 
   const credits = me.credits || 0;
   if (shopCreditsBadge) {
-    shopCreditsBadge.textContent = `💰 ${credits} CR`;
+    shopCreditsBadge.textContent = `🪙 ${credits} G`;
   }
 
   const stock = me.shopStock;
@@ -1016,8 +1016,8 @@ function renderRunEndModal(state, me) {
   }
   if (runEndTitle) {
     runEndTitle.textContent = isVictory
-      ? 'SECTOR CLEARED // EXTRACTION COMPLETE'
-      : (stats.outcome === 'retreated' ? 'RUN CONCLUDED // SIGNAL CLOSED' : 'MISSION TERMINATED // SIGNAL LOST');
+      ? 'REALM CONQUERED // VICTORY!'
+      : (stats.outcome === 'retreated' ? 'QUEST CONCLUDED // RETIRED' : 'FALLEN IN BATTLE');
   }
   if (runEndSubtitle) {
     runEndSubtitle.textContent = stats.causeOfEnd || `Reached Sector ${state.sectorNumber || 1}, Floor ${state.floor || 1}`;
@@ -1095,7 +1095,7 @@ function renderState(state, prevState = null) {
 
   const me = state.players?.[myPlayerId];
   if (creditsBadge && me) {
-    creditsBadge.textContent = `💰 ${me.credits || 0} CR`;
+    creditsBadge.textContent = `🪙 ${me.credits || 0} G`;
   }
 
   // Ensure `selectedTargetIdx` points to a living enemy
@@ -1376,21 +1376,21 @@ function renderState(state, prevState = null) {
 
       if (rewardModalTitle) {
         rewardModalTitle.textContent = me.pendingLoot.mandatoryRoom
-          ? '⚠️ ANOMALY CONTAINMENT // MANDATORY LOOT'
-          : 'ROOM CLEARED // LOOT & UPGRADES';
+          ? '🔮 NETHER RIFT // MANDATORY SPOILS'
+          : 'VICTORY // SPOILS OF BATTLE';
       }
       if (rewardModalSub) {
         rewardModalSub.textContent = hasMandatoryRemaining
-          ? 'MANDATORY ROOM: You must claim all mandatory items before continuing to the map!'
-          : 'Pick up any desired rewards below, or tap CONTINUE TO MAP to skip remaining items:';
+          ? 'CURSED RIFT: Claim all mandatory spoils before continuing your journey!'
+          : 'Claim desired spoils below, or tap CONTINUE JOURNEY to move on:';
       }
 
       if (btnSkipReward) {
         if (hasMandatoryRemaining) {
-          btnSkipReward.textContent = 'LOCKED (CLAIM MANDATORY)';
+          btnSkipReward.textContent = 'SEALED (CLAIM MANDATORY)';
           btnSkipReward.classList.add('locked');
         } else {
-          btnSkipReward.textContent = items.length > 0 ? 'SKIP & CONTINUE TO MAP' : 'CONTINUE TO MAP';
+          btnSkipReward.textContent = items.length > 0 ? 'SKIP & CONTINUE JOURNEY' : 'CONTINUE JOURNEY';
           btnSkipReward.classList.remove('locked');
         }
       }

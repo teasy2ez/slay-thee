@@ -159,7 +159,7 @@ export const STATUS_REGISTRY = {
 export const ENEMY_REGISTRY = {
   sentinel_drone: {
     id: 'sentinel_drone',
-    namePrefix: 'SENTINEL',
+    namePrefix: 'IRONFORGE GOLEM',
     baseHp: 42,
     hpPerFloor: 8,
     behaviorTree: {
@@ -218,7 +218,7 @@ export const ENEMY_REGISTRY = {
 
   swarm_stalker: {
     id: 'swarm_stalker',
-    namePrefix: 'STALKER',
+    namePrefix: 'DIRE WORG',
     baseHp: 32,
     hpPerFloor: 6,
     behaviorTree: {
@@ -257,7 +257,7 @@ export const ENEMY_REGISTRY = {
 
   enforcer_mech: {
     id: 'enforcer_mech',
-    namePrefix: 'ENFORCER',
+    namePrefix: 'ORC WARLORD',
     baseHp: 52,
     hpPerFloor: 9,
     behaviorTree: {
@@ -304,7 +304,7 @@ export const ENEMY_REGISTRY = {
 
   plague_weaver: {
     id: 'plague_weaver',
-    namePrefix: 'BIO-WEAVER',
+    namePrefix: 'PLAGUE CULTIST',
     baseHp: 44,
     hpPerFloor: 8,
     behaviorTree: {
@@ -357,7 +357,7 @@ export const ENEMY_REGISTRY = {
   overlord_core: {
     id: 'overlord_core',
     isBoss: true,
-    namePrefix: 'OVERLORD-CORE',
+    namePrefix: 'LICH SOVEREIGN',
     baseHp: 90,
     hpPerFloor: 12,
     behaviorTree: {
@@ -406,7 +406,7 @@ export const ENEMY_REGISTRY = {
   hydra_hivemind: {
     id: 'hydra_hivemind',
     isBoss: true,
-    namePrefix: 'HYDRA-QUEEN',
+    namePrefix: 'BROODMOTHER',
     baseHp: 84,
     hpPerFloor: 11,
     behaviorTree: {
@@ -461,7 +461,7 @@ export const ENEMY_REGISTRY = {
   chrono_warden: {
     id: 'chrono_warden',
     isBoss: true,
-    namePrefix: 'CHRONO-WARDEN',
+    namePrefix: 'TIMEWARDEN',
     baseHp: 96,
     hpPerFloor: 12,
     behaviorTree: {

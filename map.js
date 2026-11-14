@@ -5,75 +5,75 @@
 export const MAP_ROOM_TYPES = {
   combat: {
     id: 'combat',
-    name: 'COMBAT SECTOR',
+    name: 'SKIRMISH GROUNDS',
     icon: '⚔️',
-    shortLabel: '⚔️ COMBAT',
+    shortLabel: '⚔️ SKIRMISH',
     cssClass: 'node-combat',
     mandatoryLoot: false,
-    description: 'Hostile patrol (1-3 enemies). Drops Credits, Card Draft & Potion loot.'
+    description: 'Hostile warband (1-3 foes). Drops Gold, Tome Draft & Potion loot.'
   },
   elite: {
     id: 'elite',
-    name: 'ELITE GUARDIAN',
+    name: 'CHAMPION LAIR',
     icon: '💀',
-    shortLabel: '💀 ELITE',
+    shortLabel: '💀 CHAMPION',
     cssClass: 'node-elite',
     mandatoryLoot: false,
-    description: 'High-danger Elite encounter. Drops Relic + High Credits + Upgraded/Rare Card + Potion.'
+    description: 'Deadly Champion encounter. Drops Artifact Relic + High Gold + Upgraded Tome + Potion.'
   },
   event: {
     id: 'event',
-    name: 'MYSTERY EVENT',
+    name: 'ANCIENT ENCOUNTER',
     icon: '❓',
-    shortLabel: '❓ EVENT',
+    shortLabel: '❓ ENCOUNTER',
     cssClass: 'node-event',
     mandatoryLoot: false,
-    description: 'Interactive Sector Encounter: Risk/reward narrative choices, card cloning, shrines, and mutagens.'
+    description: 'Interactive Realm Encounter: Moonwells, goblin dice, shrines, and ancient bargains.'
   },
   shop: {
     id: 'shop',
-    name: 'BLACK MARKET',
-    icon: '🛒',
-    shortLabel: '🛒 MARKET',
+    name: 'GOBLIN MERCHANT',
+    icon: '🪙',
+    shortLabel: '🪙 MERCHANT',
     cssClass: 'node-shop',
     mandatoryLoot: false,
-    description: 'Spend Credits (CR) on Relics, Upgraded Cards, Potions, or Deck Card Removal (Purge).'
+    description: 'Spend Gold (G) on Relics, Upgraded Spells, Elixirs, or Scroll Banishment (Purge).'
   },
   anomaly: {
     id: 'anomaly',
-    name: 'ANOMALY VAULT',
-    icon: '⚠️',
-    shortLabel: '⚠️ ANOMALY',
+    name: 'NETHER RIFT',
+    icon: '🔮',
+    shortLabel: '🔮 RIFT',
     cssClass: 'node-anomaly',
     mandatoryLoot: true,
-    description: 'Unstable Containment Room: High-tier Relic + Upgraded Card, ALL LOOT IS MANDATORY PICKUP.'
+    description: 'Unstable Arcane Rift: High-tier Artifact + Upgraded Tome, ALL LOOT IS MANDATORY PICKUP.'
   },
   upgrade: {
     id: 'upgrade',
-    name: 'FORGE // REST',
-    icon: '🔧',
-    shortLabel: '🔧 FORGE',
+    name: 'CAMPFIRE // ANVIL',
+    icon: '🔥',
+    shortLabel: '🔥 CAMPFIRE',
     cssClass: 'node-upgrade',
     mandatoryLoot: false,
-    description: 'Safe terminal: Upgrade any card in your deck (+) and heal 25% Max HP.'
+    description: 'Safe haven: Forge/Upgrade any card in your grimoire (+) and heal 25% Max HP.'
   },
   treasure: {
     id: 'treasure',
-    name: 'SUPPLY VAULT',
-    icon: '📦',
-    shortLabel: '📦 VAULT',
+    name: 'ROYAL CHEST',
+    icon: '👑',
+    shortLabel: '👑 TREASURE',
     cssClass: 'node-treasure',
     mandatoryLoot: false,
-    description: 'Encrypted cache containing a Relic, Potion, Credits, and Card Upgrade.'
+    description: 'Ancient treasury containing a Relic, Elixir, Gold, and Tome Upgrade.'
   },
   boss: {
     id: 'boss',
-    name: 'OVERLORD CORE',
-    icon: '👑',
-    shortLabel: '👑 BOSS',
+    name: 'CITADEL BOSS',
+    icon: '🐉',
+    shortLabel: '🐉 BOSS',
     cssClass: 'node-boss',
     mandatoryLoot: false,
-    description: 'Sector Boss encounter. Clearing advances the sector (or Endless Mode) and drops Boss Relic + Upgraded Cards.'
+    description: 'Realm Boss encounter. Clearing advances the Realm (or Endless Mode) and drops Boss Relic + Upgraded Spells.'
   }
 };
 

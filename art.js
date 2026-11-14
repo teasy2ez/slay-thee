@@ -46,18 +46,18 @@ function polyPoints(cx, cy, r, sides, rotDeg = 0) {
 }
 
 function microCircuitLayer(h, accent, cx = 24, cy = 24) {
-  const corners = [
-    [6, 6], [42, 6], [6, 42], [42, 42],
-    [24, 5], [24, 43], [5, 24], [43, 24]
+  const pts = [
+    [7, 7], [41, 7], [7, 41], [41, 41],
+    [24, 4], [24, 44], [4, 24], [44, 24]
   ];
-  let out = '';
+  let out = `<circle cx="${cx}" cy="${cy}" r="18" fill="none" stroke="${accent}" stroke-opacity="0.16" stroke-width="0.9" stroke-dasharray="3 3"/>`;
   const count = 2 + (h % 3);
   for (let i = 0; i < count; i++) {
-    const idx = Math.floor(prng(h, i + 10) * corners.length);
-    const [px, py] = corners[idx];
+    const idx = Math.floor(prng(h, i + 10) * pts.length);
+    const [px, py] = pts[idx];
     const r = (1.1 + prng(h, i + 20) * 1.1).toFixed(1);
-    out += `<line x1="${cx}" y1="${cy}" x2="${px}" y2="${py}" stroke="${accent}" stroke-opacity="0.22" stroke-width="0.9" stroke-dasharray="2 2"/>`;
-    out += `<circle cx="${px}" cy="${py}" r="${r}" fill="${accent}" fill-opacity="0.6"/>`;
+    out += `<polygon points="${px},${(py - 2).toFixed(1)} ${(px + 1.8).toFixed(1)},${py} ${px},${(py + 2).toFixed(1)} ${(px - 1.8).toFixed(1)},${py}" fill="${accent}" fill-opacity="0.55"/>`;
+    out += `<circle cx="${px}" cy="${py}" r="${r}" fill="#fde68a" fill-opacity="0.45"/>`;
   }
   return out;
 }
@@ -286,55 +286,61 @@ export function getEnemyArtSvg(enemy) {
 
   let core = '';
   if (baseId === 'overlord_core') {
+    // Lich Sovereign: Jagged Frost Crown & glowing ice-blue eyes
     core = `
-      <polygon points="14,10 19,5 24,10 29,5 34,10 32,14 16,14" fill="#eab308"/>
-      <polygon points="${polyPoints(24, 27, 15, 8, 22.5)}" fill="#ef4444" fill-opacity="0.18" stroke="#ef4444" stroke-width="1.8"/>
-      <circle cx="24" cy="27" r="7" fill="#18181b" stroke="#fb923c" stroke-width="1.6"/>
-      <circle cx="24" cy="27" r="3" fill="#ef4444"/>
+      <polygon points="10,16 14,5 20,12 24,4 28,12 34,5 38,16 34,20 14,20" fill="#d4af37" stroke="#fef08a" stroke-width="1.1"/>
+      <path d="M14 20 H34 L31 37 L24 42 L17 37 Z" fill="#1e293b" stroke="#38bdf8" stroke-width="1.6"/>
+      <polygon points="17,26 22,27 19,29" fill="#38bdf8"/>
+      <polygon points="31,26 26,27 29,29" fill="#38bdf8"/>
+      <line x1="24" y1="31" x2="24" y2="39" stroke="#94a3b8" stroke-width="1.4"/>
     `;
   } else if (baseId === 'hydra_hivemind') {
+    // Dragon Broodmother: Horned dragon skull & spread wings
     core = `
-      <path d="M12 36 Q10 20 15 12 M24 38 V10 M36 36 Q38 20 33 12" fill="none" stroke="#84cc16" stroke-width="2.4" stroke-linecap="round"/>
-      <polygon points="15,8 19,14 11,14" fill="#bef264"/>
-      <polygon points="24,6 28,13 20,13" fill="#eab308"/>
-      <polygon points="33,8 37,14 29,14" fill="#bef264"/>
-      <ellipse cx="24" cy="36" rx="13" ry="6" fill="#84cc16" fill-opacity="0.25" stroke="#84cc16" stroke-width="1.6"/>
+      <path d="M5 18 Q13 10 20 19 M43 18 Q35 10 28 19" fill="none" stroke="#dc2626" stroke-width="2.4" stroke-linecap="round"/>
+      <polygon points="24,11 33,23 28,38 20,38 15,23" fill="#7f1d1d" stroke="#f59e0b" stroke-width="1.6"/>
+      <polygon points="15,17 9,7 19,14" fill="#d4af37"/>
+      <polygon points="33,17 39,7 29,14" fill="#d4af37"/>
+      <circle cx="20" cy="24" r="2" fill="#fde047"/>
+      <circle cx="28" cy="24" r="2" fill="#fde047"/>
     `;
   } else if (baseId === 'chrono_warden') {
+    // Bronze Timewarden: Golden hourglass & dragonflight wings
     core = `
-      <circle cx="24" cy="24" r="17" fill="none" stroke="#a855f7" stroke-width="1.5" stroke-dasharray="5 3"/>
-      <polygon points="14,11 34,11 24,24 34,37 14,37 24,24" fill="#a855f7" fill-opacity="0.24" stroke="#d8b4fe" stroke-width="1.7"/>
-      <circle cx="24" cy="24" r="2.6" fill="#fde047"/>
+      <path d="M7 18 Q14 14 17 24 Q14 34 7 30 M41 18 Q34 14 31 24 Q34 34 41 30" fill="#d4af37" fill-opacity="0.2" stroke="#d4af37" stroke-width="1.5"/>
+      <polygon points="15,10 33,10 24,24 33,38 15,38 24,24" fill="#f59e0b" fill-opacity="0.26" stroke="#fde68a" stroke-width="1.7"/>
+      <circle cx="24" cy="24" r="2.6" fill="#38bdf8"/>
     `;
   } else if (baseId === 'swarm_stalker') {
+    // Dire Worg: Snarling beast silhouette & crimson eyes
     core = `
-      <polygon points="24,9 41,23 30,27 24,39 18,27 7,23" fill="#f97316" fill-opacity="0.2" stroke="#f97316" stroke-width="1.7"/>
-      <line x1="17" y1="21" x2="22" y2="24" stroke="#fff" stroke-width="1.8"/>
-      <line x1="31" y1="21" x2="26" y2="24" stroke="#fff" stroke-width="1.8"/>
+      <polygon points="12,10 19,17 29,17 36,10 38,24 24,40 10,24" fill="#7c2d12" fill-opacity="0.35" stroke="#fb923c" stroke-width="1.6"/>
+      <polygon points="18,22 22,24 19,25" fill="#ef4444"/>
+      <polygon points="30,22 26,24 29,25" fill="#ef4444"/>
+      <path d="M18 31 L21 35 L24 31 L27 35 L30 31" fill="none" stroke="#fef3c7" stroke-width="1.5"/>
     `;
   } else if (baseId === 'enforcer_mech') {
+    // Orc Warlord: Spiked iron pauldrons, tusks & battle helm
     core = `
-      <rect x="11" y="12" width="26" height="25" fill="#ef4444" fill-opacity="0.16" stroke="#ef4444" stroke-width="1.8"/>
-      <rect x="7" y="16" width="4" height="12" fill="#94a3b8"/>
-      <rect x="37" y="16" width="4" height="12" fill="#94a3b8"/>
-      <rect x="16" y="19" width="16" height="4" fill="#fb923c"/>
-      <line x1="16" y1="30" x2="32" y2="30" stroke="#ef4444" stroke-width="2"/>
+      <path d="M6 22 L14 13 L34 13 L42 22 L38 35 H10 Z" fill="#7f1d1d" fill-opacity="0.32" stroke="#ef4444" stroke-width="1.7"/>
+      <polygon points="15,35 17,27 20,35" fill="#fef3c7"/>
+      <polygon points="33,35 31,27 28,35" fill="#fef3c7"/>
+      <rect x="17" y="19" width="14" height="3.5" fill="#fbbf24"/>
     `;
   } else if (baseId === 'plague_weaver') {
+    // Plague Cultist: Hooded skull & glowing fel-green alchemy runes
     core = `
-      <circle cx="24" cy="24" r="10" fill="#84cc16" fill-opacity="0.22" stroke="#84cc16" stroke-width="1.8"/>
-      <path d="M14 20 L6 13 M14 28 L6 35 M34 20 L42 13 M34 28 L42 35" stroke="#bef264" stroke-width="1.8" stroke-linecap="round"/>
-      <circle cx="20" cy="22" r="2" fill="#ef4444"/>
-      <circle cx="28" cy="22" r="2" fill="#ef4444"/>
-      <circle cx="24" cy="27" r="1.6" fill="#fde047"/>
+      <path d="M24 7 L38 21 L33 39 H15 L10 21 Z" fill="#14532d" fill-opacity="0.35" stroke="#4ade80" stroke-width="1.7"/>
+      <circle cx="20" cy="23" r="2.3" fill="#bef264"/>
+      <circle cx="28" cy="23" r="2.3" fill="#bef264"/>
+      <path d="M20 31 H28 M24 28 V34" stroke="#4ade80" stroke-width="1.5"/>
     `;
   } else {
-    // sentinel_drone
+    // Ironforge Golem: Runic stone helm & molten forge visor
     core = `
-      <polygon points="${polyPoints(24, 24, 13, 6, 30)}" fill="#38bdf8" fill-opacity="0.16" stroke="#38bdf8" stroke-width="1.7"/>
-      <line x1="6" y1="24" x2="12" y2="24" stroke="#7dd3fc" stroke-width="2"/>
-      <line x1="36" y1="24" x2="42" y2="24" stroke="#7dd3fc" stroke-width="2"/>
-      <circle cx="24" cy="24" r="4.5" fill="#ef4444"/>
+      <polygon points="${polyPoints(24, 24, 14, 6, 30)}" fill="#334155" fill-opacity="0.45" stroke="#d4af37" stroke-width="1.7"/>
+      <rect x="16" y="21" width="16" height="5" fill="#f97316"/>
+      <line x1="24" y1="11" x2="24" y2="18" stroke="#d4af37" stroke-width="1.8"/>
     `;
   }
 
@@ -359,32 +365,35 @@ export function getClassArtSvg(classId = 'vanguard') {
 
   let body = '';
   if (classId === 'spectre') {
+    // Shadowblade: Hooded assassin cowl & glowing amber eyes
     body = `
-      <polygon points="24,6 39,18 35,40 13,40 9,18" fill="#38bdf8" fill-opacity="0.15" stroke="#38bdf8" stroke-width="1.8"/>
-      <line x1="15" y1="22" x2="22" y2="24" stroke="#fde047" stroke-width="2.2"/>
-      <line x1="33" y1="22" x2="26" y2="24" stroke="#fde047" stroke-width="2.2"/>
-      <path d="M18 33 L24 30 L30 33" fill="none" stroke="#7dd3fc" stroke-width="1.5"/>
+      <polygon points="24,6 39,19 34,40 14,40 9,19" fill="#1e1b4b" fill-opacity="0.45" stroke="#c084fc" stroke-width="1.8"/>
+      <line x1="15" y1="23" x2="22" y2="25" stroke="#fde047" stroke-width="2.2"/>
+      <line x1="33" y1="23" x2="26" y2="25" stroke="#fde047" stroke-width="2.2"/>
+      <path d="M17 34 L24 29 L31 34" fill="none" stroke="#94a3b8" stroke-width="1.6"/>
     `;
   } else if (classId === 'plaguebringer') {
+    // Necromancer: Horned skull hood & fel runes
     body = `
-      <circle cx="24" cy="23" r="14" fill="#84cc16" fill-opacity="0.16" stroke="#84cc16" stroke-width="1.8"/>
-      <circle cx="18" cy="20" r="3.2" fill="#bef264"/>
-      <circle cx="30" cy="20" r="3.2" fill="#bef264"/>
-      <rect x="19" y="28" width="10" height="7" fill="#18181b" stroke="#84cc16" stroke-width="1.5"/>
-      <line x1="24" y1="28" x2="24" y2="35" stroke="#84cc16" stroke-width="1.4"/>
+      <path d="M12 10 L17 18 L31 18 L36 10 L38 26 L24 41 L10 26 Z" fill="#14532d" fill-opacity="0.35" stroke="#4ade80" stroke-width="1.8"/>
+      <circle cx="19" cy="24" r="2.8" fill="#bef264"/>
+      <circle cx="29" cy="24" r="2.8" fill="#bef264"/>
+      <path d="M20 33 H28" stroke="#4ade80" stroke-width="1.8"/>
     `;
   } else if (classId === 'voidmancer') {
+    // Archmage: Kirin Tor arcane hood & glowing third-eye crystal
     body = `
-      <path d="M24 6 L39 38 H9 Z" fill="#a855f7" fill-opacity="0.18" stroke="#a855f7" stroke-width="1.8"/>
-      <circle cx="24" cy="25" r="5.5" fill="#18181b" stroke="#d8b4fe" stroke-width="1.6"/>
+      <path d="M24 5 L39 38 H9 Z" fill="#1e3a8a" fill-opacity="0.35" stroke="#38bdf8" stroke-width="1.8"/>
+      <polygon points="24,16 29,25 24,34 19,25" fill="#c084fc" stroke="#fde68a" stroke-width="1.4"/>
       <circle cx="24" cy="25" r="2.2" fill="#fde047"/>
     `;
   } else {
-    // vanguard
+    // Paladin: Winged golden bastion helm & radiant visor
     body = `
-      <path d="M11 12 L24 7 L37 12 V27 C37 35 24 41 24 41 C24 41 11 35 11 27 Z" fill="#ef4444" fill-opacity="0.16" stroke="#e4e4e7" stroke-width="1.8"/>
-      <rect x="15" y="19" width="18" height="4" fill="#38bdf8"/>
-      <line x1="24" y1="26" x2="24" y2="36" stroke="#ef4444" stroke-width="2"/>
+      <path d="M7 13 L13 18 M41 13 L35 18" stroke="#d4af37" stroke-width="2.4" stroke-linecap="round"/>
+      <path d="M12 13 L24 7 L36 13 V27 C36 35 24 41 24 41 C24 41 12 35 12 27 Z" fill="#78350f" fill-opacity="0.3" stroke="#d4af37" stroke-width="1.8"/>
+      <rect x="16" y="19" width="16" height="4" fill="#fef08a"/>
+      <line x1="24" y1="25" x2="24" y2="37" stroke="#d4af37" stroke-width="2"/>
     `;
   }
 

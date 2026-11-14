@@ -13,47 +13,50 @@ import { POTION_REGISTRY } from "./potions.js";
 export const OPERATIVE_CLASSES = {
   vanguard: {
     id: 'vanguard',
-    name: 'VANGUARD',
+    name: 'PALADIN',
     icon: '🛡️',
+    title: 'SILVER HAND BASTION',
     subtitle: 'BASTION // THORNS & SHIELD-SLAM',
     maxHp: 58,
     maxEnergy: 3,
     startingCredits: 75,
     starterPotions: ['block_potion', null, null],
     signatureCards: ['shield_slam', 'reactive_plating'],
-    passiveDesc: 'Start each battle with +5 Shield and +1 Thorns.',
+    passiveDesc: 'Start each battle with +5 Block and +1 Thorns.',
     onBattleStart(player, ctx) {
-      ctx.gainBlock(player, 5, { raw: true, sourceName: 'Vanguard Armor' });
+      ctx.gainBlock(player, 5, { raw: true, sourceName: 'Paladin Bulwark' });
       ctx.applyStatus(player, player, 'thorns', 1);
     }
   },
   spectre: {
     id: 'spectre',
-    name: 'SPECTRE',
+    name: 'SHADOWBLADE',
     icon: '🗡️',
+    title: 'NIGHTWATCH ASSASSIN',
     subtitle: 'ASSASSIN // MULTI-HIT & COMBO DRAW',
     maxHp: 48,
     maxEnergy: 3,
     startingCredits: 85,
     starterPotions: ['swift_potion', null, null],
     signatureCards: ['flurry', 'zero_cool'],
-    passiveDesc: 'Draw +1 extra card on Turn 1 of every battle.',
+    passiveDesc: 'Draw +1 extra spell on Turn 1 of every battle.',
     onBattleStart(player, ctx) {
       ctx.drawCards(player, 1);
-      ctx.log('[CLASS] Spectre Reflexes drew +1 card.');
+      ctx.log('[HERO] Shadowblade Reflexes drew +1 card.');
     }
   },
   plaguebringer: {
     id: 'plaguebringer',
-    name: 'PLAGUEBRINGER',
+    name: 'NECROMANCER',
     icon: '☣️',
-    subtitle: 'ALCHEMIST // BIO-CORRODE & DEBUFFS',
+    title: 'SCOURGE PLAGUEWEAVER',
+    subtitle: 'PLAGUE // CORRODE & HEXES',
     maxHp: 50,
     maxEnergy: 3,
     startingCredits: 80,
     starterPotions: ['poison_potion', null, null],
     signatureCards: ['venom_blade', 'acid_rain'],
-    passiveDesc: 'At the start of battle, apply 3 Corrode to all enemies.',
+    passiveDesc: 'At battle start, inflict 3 Corrode on all foes.',
     onBattleStart(player, ctx) {
       for (const e of ctx.state.enemies || []) {
         if (e.hp > 0) ctx.applyStatus(player, e, 'corrode', 3);
@@ -62,96 +65,97 @@ export const OPERATIVE_CLASSES = {
   },
   voidmancer: {
     id: 'voidmancer',
-    name: 'VOIDMANCER',
+    name: 'ARCHMAGE',
     icon: '🔮',
-    subtitle: 'TECHNOMANCER // EXHAUST & OVERCLOCK',
+    title: 'KIRIN TOR CONJURER',
+    subtitle: 'ARCANE // EXHAUST & MANA SURGE',
     maxHp: 46,
     maxEnergy: 3,
     startingCredits: 90,
     starterPotions: ['energy_potion', null, null],
     signatureCards: ['overclock', 'scrap_cannon'],
-    passiveDesc: 'Start Turn 1 with +1 Energy. Exhausting cards grants +2 Shield.',
+    passiveDesc: 'Start Turn 1 with +1 Mana. Exhausting cards grants +2 Block.',
     onBattleStart(player, ctx) {
-      ctx.gainEnergy(player, 1, 'Void Reactor');
+      ctx.gainEnergy(player, 1, 'Arcane Font');
     },
     onCardExhausted(player, ctx) {
-      ctx.gainBlock(player, 2, { raw: true, sourceName: 'Void Resonance' });
+      ctx.gainBlock(player, 2, { raw: true, sourceName: 'Arcane Ward' });
     }
   }
 };
 
 // ----------------------------------------------------------------------------
-// 2. Toggleable Run Mutators (Custom Modifiers for Infinite Replayability)
+// 2. Toggleable Realm Mutators (Custom Modifiers for Infinite Replayability)
 // ----------------------------------------------------------------------------
 
 export const RUN_MUTATORS = {
   draft_protocol: {
     id: 'draft_protocol',
-    name: 'CHAOS DRAFT',
+    name: 'CHAOS GRIMOIRE',
     icon: '🎲',
-    description: 'Replace your starter Strikes & Defends with 10 random cards from all archetypes.'
+    description: 'Replace starter Strikes & Defends with 10 random spells from all schools.'
   },
   glass_world: {
     id: 'glass_world',
-    name: 'GLASS CANNON',
+    name: "BERSERKER'S WRATH",
     icon: '💥',
-    description: 'All players and enemies deal +40% outgoing Attack damage.'
+    description: 'All Heroes and Foes deal +40% outgoing Attack damage.'
   },
   volatile_compiler: {
     id: 'volatile_compiler',
-    name: 'SNECKO MATRIX',
+    name: 'ARCANE SURGE',
     icon: '🌀',
-    description: 'Draw +2 extra cards each turn, but card Energy costs randomize (0–2) when drawn.'
+    description: 'Draw +2 extra cards each turn, but Mana costs randomize (0–2) when drawn.'
   },
   elite_bounty: {
     id: 'elite_bounty',
-    name: 'ELITE SWARM',
+    name: "WARLORD'S BOUNTY",
     icon: '💀',
-    description: 'More Elites & Anomalies on the map. Defeating enemies grants +50% more Credits.'
+    description: 'More Champions & Nether Rifts on the map. Slaying foes grants +50% Gold.'
   },
   hyper_regen: {
     id: 'hyper_regen',
-    name: 'VAMPIRIC SECTOR',
+    name: 'BLOOD PACT',
     icon: '🩸',
-    description: 'Lose 2 HP at the start of each turn, but heal 2 HP whenever you play an Attack.'
+    description: 'Lose 2 HP at turn start, but heal 2 HP whenever you play an Attack.'
   }
 };
 
 // ----------------------------------------------------------------------------
-// 3. Glitch / Curse Cards (Risk/Reward Hazards for Anomalies & Events)
+// 3. Dark Hex / Curse Cards (Risk/Reward Hazards for Rifts & Encounters)
 // ----------------------------------------------------------------------------
 
 export const CURSE_CARDS = [
   {
     id: 'glitch_static',
-    name: 'GLITCH: STATIC',
+    name: 'HEX: WITHERING STATIC',
     cost: 1,
     type: 'curse',
     rarity: 'curse',
     exhaust: true,
-    description: 'Unplayable hazard unless purged: Pay 1 Energy to Exhaust this card from your hand.',
+    description: 'Dark hex: Pay 1 Mana to Burn (Exhaust) this curse from your hand.',
     onPlay(ctx) {
-      ctx.log(`[CURSE] ${ctx.player.name} purged Glitch: Static for this battle.`);
+      ctx.log(`[CURSE] ${ctx.player.name} banished Hex: Withering Static.`);
     },
-    upgrade: { cost: 0, description: 'Pay 0 Energy to Exhaust this Glitch.' }
+    upgrade: { cost: 0, description: 'Pay 0 Mana to Burn this Hex.' }
   },
   {
     id: 'parasite_code',
-    name: 'GLITCH: PARASITE',
+    name: 'HEX: DEMONIC LEECH',
     cost: 1,
     type: 'curse',
     rarity: 'curse',
     exhaust: true,
     description: 'Lose 3 HP and draw 1 card. Exhaust.',
     onPlay(ctx) {
-      ctx.dealDirectHpLoss(ctx.player, 3, 'Glitch: Parasite');
+      ctx.dealDirectHpLoss(ctx.player, 3, 'Hex: Demonic Leech');
       ctx.drawCards(ctx.player, 1);
     },
     upgrade: { cost: 0, description: 'Lose 2 HP and draw 1 card. Exhaust.' }
   },
   {
     id: 'system_lag',
-    name: 'GLITCH: LAG SPIKE',
+    name: 'HEX: FROSTBOUND SHACKLE',
     cost: 2,
     type: 'curse',
     rarity: 'curse',
@@ -175,7 +179,7 @@ for (const c of CURSE_CARDS) {
 export const EVENT_REGISTRY = {
   rogue_ai_shrine: {
     id: 'rogue_ai_shrine',
-    title: 'ROGUE AI SHRINE',
+    title: 'FORGOTTEN MOONWELL',
     flavor: 'A humming monolith offers to rewrite your combat subroutines—at a biological cost.',
     choices: [
       {
@@ -215,7 +219,7 @@ export const EVENT_REGISTRY = {
 
   cyber_surgeon: {
     id: 'cyber_surgeon',
-    title: 'BACK-ALLEY CYBER SURGEON',
+    title: 'WANDERING APOTHECARY',
     flavor: 'An automated surgical bay whirs to life: "OPTICAL AND NEURAL AUGMENTS HALF OFF."',
     choices: [
       {
@@ -251,7 +255,7 @@ export const EVENT_REGISTRY = {
 
   mirror_duplicator: {
     id: 'mirror_duplicator',
-    title: 'QUANTUM CLONING VAT',
+    title: 'SUNWELL MIRROR',
     flavor: 'A crystalline chamber reflects your strongest tactical memory and offers to replicate it.',
     choices: [
       {
@@ -285,7 +289,7 @@ export const EVENT_REGISTRY = {
 
   gamblers_terminal: {
     id: 'gamblers_terminal',
-    title: 'HIGH-ROLLER TERMINAL',
+    title: 'GOBLIN DICE TAVERN',
     flavor: 'Neon dice spin across a holographic screen. "DOUBLE OR NOTHING, OPERATIVE."',
     choices: [
       {
@@ -316,7 +320,7 @@ export const EVENT_REGISTRY = {
 
   alchemist_lab: {
     id: 'alchemist_lab',
-    title: 'ABANDONED CHEM-LAB',
+    title: 'DALARAN ALCHEMY LAB',
     flavor: 'Rows of glowing vials bubble on an unattended centrifuge.',
     choices: [
       {
@@ -347,7 +351,7 @@ export const EVENT_REGISTRY = {
 
   void_altar: {
     id: 'void_altar',
-    title: 'ALTAR OF THE VOID',
+    title: 'TWISTING NETHER ALTAR',
     flavor: 'Whispers from the singularity promise immense power to those who shed their bulk.',
     choices: [
       {
