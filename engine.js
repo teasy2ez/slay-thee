@@ -1,5 +1,5 @@
 // ============================================================================
-// ENGINE.JS — Hook Pipeline, Multi-Enemy Combat, Map/Loot & AI Evaluator
+// ENGINE.JS — Hook Pipeline, Multi-Enemy Combat, Classes, Mutators, Shop & Events
 // ============================================================================
 
 import {
@@ -13,7 +13,18 @@ import {
   MAP_ROOM_TYPES,
   generateSectorMap,
   findMapNode,
-  getSelectableNodeIds
+  getSelectableNodeIds,
+  OPERATIVE_CLASSES,
+  RUN_MUTATORS,
+  CURSE_CARDS,
+  EVENT_REGISTRY,
+  generateShopStock,
+  grantRandomNonStarterRelic,
+  purgeWeakestCard,
+  transformStarterCards,
+  loadCareerProfile,
+  saveCareerProfile,
+  updateCareerStat
 } from "./registry.js";
 
 export {
@@ -27,7 +38,18 @@ export {
   MAP_ROOM_TYPES,
   generateSectorMap,
   findMapNode,
-  getSelectableNodeIds
+  getSelectableNodeIds,
+  OPERATIVE_CLASSES,
+  RUN_MUTATORS,
+  CURSE_CARDS,
+  EVENT_REGISTRY,
+  generateShopStock,
+  grantRandomNonStarterRelic,
+  purgeWeakestCard,
+  transformStarterCards,
+  loadCareerProfile,
+  saveCareerProfile,
+  updateCareerStat
 };
 
 // ----------------------------------------------------------------------------
@@ -79,9 +101,10 @@ export function applyDamageToEntity(incomingDamage, currentShield, currentHp) {
 }
 
 /**
- * Starter deck: 4 Strikes, 4 Defends, and 2 Random Common Cards.
+ * Starter deck: 4 Strikes, 4 Defends, and 2 Random Common Cards
+ * (or 10 randomized archetype cards when `draftProtocol` mutator is active).
  */
-export function createStarterDeck() {
+export function createStarterDeck(classId = 'vanguard', draftProtocol = false) {
   const cards = [];
   const add = (id, count, upgraded = false) => {
     for (let i = 0; i < count; i++) {
@@ -93,6 +116,18 @@ export function createStarterDeck() {
     }
   };
 
+  if (draftProtocol) {
+    const allPlayable = Object.values(CARD_REGISTRY).filter(
+      c => c.rarity !== 'starter' && c.rarity !== 'curse' && c.id !== 'inflict_vuln'
+    );
+    for (let i = 0; i < 10; i++) {
+      const pick = allPlayable[Math.floor(Math.random() * allPlayable.length)];
+      if (pick) add(pick.id, 1, Math.random() < 0.25);
+    }
+    return cards;
+  }
+
+  // Strictly 4 Strikes, 4 Defends, and 2 Random Common Cards
   add('strike', 4, false);
   add('defend', 4, false);
 
@@ -116,11 +151,20 @@ export function rollStarterRelicChoices(count = 3) {
   return [...starterIds].sort(() => Math.random() - 0.5).slice(0, count);
 }
 
+export function getEffectiveCardCost(cardInstance, def) {
+  if (cardInstance && typeof cardInstance.costOverride === 'number') {
+    return cardInstance.costOverride;
+  }
+  return def?.cost ?? 1;
+}
+
 export function drawCards(player, count, state = null) {
   if (!player.hand) player.hand = [];
   if (!player.deck) player.deck = [];
   if (!player.discard) player.discard = [];
   if (!player.exhaust) player.exhaust = [];
+
+  const isSnecko = Array.isArray(state?.mutators) && state.mutators.includes('volatile_compiler');
 
   for (let i = 0; i < count; i++) {
     if (player.hand.length >= 10) break;
@@ -133,7 +177,12 @@ export function drawCards(player, count, state = null) {
       }
     }
     const drawn = player.deck.pop();
-    if (drawn) player.hand.push(drawn);
+    if (drawn) {
+      if (isSnecko) {
+        drawn.costOverride = Math.floor(Math.random() * 3); // 0, 1, or 2
+      }
+      player.hand.push(drawn);
+    }
   }
 }
 
@@ -167,6 +216,11 @@ export function runModifierHook(hookName, initialValue, payload, state) {
     const weakHook = STATUS_REGISTRY.weak?.hooks?.modifyOutgoingDamage;
     if (weakHook && source.statuses.weak > 0) {
       value = weakHook(value, { ...payload, ctx });
+    }
+
+    // Mutator: Glass World (+40% outgoing damage for everyone)
+    if (Array.isArray(state?.mutators) && state.mutators.includes('glass_world')) {
+      value = Math.floor(value * 1.4);
     }
   } else if (hookName === 'modifyIncomingDamage') {
     const target = payload.target;
@@ -224,6 +278,12 @@ export function triggerHook(hookName, payload, state) {
       : [];
 
   for (const player of targetPlayers) {
+    // Class Passive Hooks
+    const cls = OPERATIVE_CLASSES[player.classId];
+    if (cls && typeof cls[hookName] === 'function') {
+      cls[hookName](player, ctx);
+    }
+
     if (!Array.isArray(player.relics)) continue;
     for (const relicState of player.relics) {
       const relicDef = RELIC_REGISTRY[relicState.id];
@@ -455,10 +515,11 @@ export function createBattleContext(state, activePlayer = null, activeTarget = n
 
 export function evaluateBehaviorTree(node, enemy, state) {
   if (!node) return null;
+  const effFloor = (state.floor || 1) + ((state.sectorNumber || 1) - 1) * 10 + Math.floor((state.threatLevel || 0) * 0.8);
 
   switch (node.type) {
     case 'action':
-      return structuredCloneIntent(node.intent, state.floor || 1);
+      return structuredCloneIntent(node.intent, effFloor);
 
     case 'condition': {
       const passed = typeof node.check === 'function' ? node.check(enemy, state) : false;
@@ -495,10 +556,10 @@ export function evaluateBehaviorTree(node, enemy, state) {
       for (const opt of validOptions) {
         roll -= (opt.weight || 1);
         if (roll <= 0) {
-          return structuredCloneIntent(opt.intent, state.floor || 1);
+          return structuredCloneIntent(opt.intent, effFloor);
         }
       }
-      return structuredCloneIntent(validOptions[0]?.intent, state.floor || 1);
+      return structuredCloneIntent(validOptions[0]?.intent, effFloor);
     }
 
     default:
@@ -542,13 +603,18 @@ export function selectNextEnemyIntent(enemy, state) {
 
 function createEnemyUnit(archetypeId, index, floor, playerCount, state, options = {}) {
   const template = ENEMY_REGISTRY[archetypeId] || ENEMY_REGISTRY.sentinel_drone;
-  const hpScale = options.hpScale || 1.0;
+  const threat = state?.threatLevel || 0;
+  const sectorBonus = ((state?.sectorNumber || 1) - 1) * 0.35;
+  const threatHpMult = 1 + (threat * 0.08) + sectorBonus;
+
+  const hpScale = (options.hpScale || 1.0) * threatHpMult;
   const rawHp = template.baseHp + (floor * template.hpPerFloor) + Math.max(0, playerCount - 1) * 24;
   const finalHp = Math.max(18, Math.floor(rawHp * hpScale));
 
   const statuses = createDefaultStatuses();
-  if (options.bonusStrength) {
-    statuses.strength = options.bonusStrength;
+  const bonusStr = (options.bonusStrength || 0) + (threat >= 3 ? 1 : 0) + (threat >= 7 ? 1 : 0);
+  if (bonusStr > 0) {
+    statuses.strength = bonusStr;
   }
 
   const suffix = String.fromCharCode(65 + index);
@@ -560,7 +626,7 @@ function createEnemyUnit(archetypeId, index, floor, playerCount, state, options 
     name: `${prefix}${template.namePrefix}-${floor}${suffix}`,
     hp: finalHp,
     maxHp: finalHp,
-    shield: options.startingShield || 0,
+    shield: (options.startingShield || 0) + (threat >= 5 ? 4 : 0),
     statuses,
     aiState: { turn: index % 2, lastMoveId: null },
     intent: null
@@ -571,14 +637,16 @@ function createEnemyUnit(archetypeId, index, floor, playerCount, state, options 
 }
 
 /**
- * Spawns 1 to 3 enemies per encounter based on floor and roomType.
+ * Spawns 1 to 3 enemies per encounter based on floor and roomType, including rotating Bosses.
  */
 export function spawnEnemiesForEncounter(floor, playerCount = 1, state = {}, roomType = 'combat') {
-  const standardKeys = Object.keys(ENEMY_REGISTRY).filter(k => k !== 'overlord_core');
+  const standardKeys = Object.keys(ENEMY_REGISTRY).filter(k => !ENEMY_REGISTRY[k].isBoss);
+  const bossKeys = Object.keys(ENEMY_REGISTRY).filter(k => ENEMY_REGISTRY[k].isBoss);
   const pickRandomArchetype = () => standardKeys[Math.floor(Math.random() * standardKeys.length)];
 
   if (roomType === 'boss') {
-    const boss = createEnemyUnit('overlord_core', 0, floor, playerCount, state, {
+    const bossKey = bossKeys[(floor + (state.sectorNumber || 1)) % bossKeys.length] || 'overlord_core';
+    const boss = createEnemyUnit(bossKey, 0, floor, playerCount, state, {
       roomType,
       hpScale: 1.15,
       bonusStrength: 2,
@@ -594,7 +662,6 @@ export function spawnEnemiesForEncounter(floor, playerCount = 1, state = {}, roo
 
   if (roomType === 'elite') {
     if (Math.random() < 0.55) {
-      // Duo Elite encounter: 1 Elite + 1 Escort
       const mainKey = ['enforcer_mech', 'plague_weaver'][floor % 2];
       return [
         createEnemyUnit(mainKey, 0, floor, playerCount, state, {
@@ -623,7 +690,6 @@ export function spawnEnemiesForEncounter(floor, playerCount = 1, state = {}, roo
   }
 
   if (roomType === 'anomaly') {
-    // Anomaly room: always 2 volatile units
     return [
       createEnemyUnit(pickRandomArchetype(), 0, floor, playerCount, state, {
         roomType,
@@ -640,7 +706,6 @@ export function spawnEnemiesForEncounter(floor, playerCount = 1, state = {}, roo
     ];
   }
 
-  // Standard Combat: 1 to 3 enemies
   const roll = Math.random();
   if (floor === 1) {
     if (roll < 0.55) {
@@ -652,8 +717,7 @@ export function spawnEnemiesForEncounter(floor, playerCount = 1, state = {}, roo
     return [createEnemyUnit('sentinel_drone', 0, floor, playerCount, state, { roomType, hpScale: 1.05 })];
   }
 
-  if (floor >= 3 && roll < 0.22) {
-    // 3-Enemy Swarm!
+  if (floor >= 3 && roll < 0.25) {
     return [
       createEnemyUnit('swarm_stalker', 0, floor, playerCount, state, { roomType, hpScale: 0.58 }),
       createEnemyUnit(pickRandomArchetype(), 1, floor, playerCount, state, { roomType, hpScale: 0.62 }),
@@ -661,15 +725,13 @@ export function spawnEnemiesForEncounter(floor, playerCount = 1, state = {}, roo
     ];
   }
 
-  if (roll < 0.75) {
-    // 2-Enemy Duo!
+  if (roll < 0.76) {
     return [
       createEnemyUnit(pickRandomArchetype(), 0, floor, playerCount, state, { roomType, hpScale: 0.78 }),
       createEnemyUnit(pickRandomArchetype(), 1, floor, playerCount, state, { roomType, hpScale: 0.78 })
     ];
   }
 
-  // 1 Heavy Bruiser
   return [
     createEnemyUnit('enforcer_mech', 0, floor, playerCount, state, {
       roomType,
@@ -757,29 +819,35 @@ export function formatTelegraphedIntent(enemy, targetPlayer, state) {
 }
 
 // ----------------------------------------------------------------------------
-// 5. Run Initialization, Starter Relic Selection & Map Navigation
+// 5. Run Initialization, Classes, Starter Relic, Map, Shop & Mystery Events
 // ----------------------------------------------------------------------------
 
-export function createInitialPlayer(id, name) {
+export function createInitialPlayer(id, name, classId = 'vanguard', draftProtocol = false) {
+  const cls = OPERATIVE_CLASSES[classId] || OPERATIVE_CLASSES.vanguard;
   const p = {
     id,
     name,
-    hp: 52,
-    maxHp: 52,
+    classId: cls.id,
+    className: cls.name,
+    hp: cls.maxHp || 52,
+    maxHp: cls.maxHp || 52,
+    credits: cls.startingCredits ?? 75,
+    shopPurgesUsed: 0,
     shield: 0,
-    energy: 3,
-    maxEnergy: 3,
+    energy: cls.maxEnergy || 3,
+    maxEnergy: cls.maxEnergy || 3,
     turnAttacksPlayed: 0,
     statuses: createDefaultStatuses(),
     relics: [],
-    potions: ['fire_potion', null, null], // 3 Potion Slots (1 starter potion)
+    potions: Array.isArray(cls.starterPotions) ? [...cls.starterPotions] : ['fire_potion', null, null],
     starterRelicChoices: rollStarterRelicChoices(3),
-    masterDeck: createStarterDeck(),
+    masterDeck: createStarterDeck(cls.id, draftProtocol),
     deck: [],
     hand: [],
     discard: [],
     exhaust: [],
     pendingLoot: null,
+    shopStock: null,
     isReady: false,
     isAlive: true
   };
@@ -787,19 +855,41 @@ export function createInitialPlayer(id, name) {
   return p;
 }
 
-export function beginRunFromLobby(state) {
+export function beginRunFromLobby(state, options = {}) {
   state.floor = 1;
+  state.sectorNumber = 1;
+  state.threatLevel = typeof options.threatLevel === 'number' ? options.threatLevel : (state.threatLevel || 0);
+  state.mutators = Array.isArray(options.mutators) ? options.mutators : (state.mutators || []);
   state.phase = 'boot_relic';
-  state.map = generateSectorMap(12);
+  state.map = generateSectorMap(12, state.mutators);
   state.enemies = [];
+
+  const isDraft = state.mutators.includes('draft_protocol');
   for (const pid in state.players) {
     const p = state.players[pid];
+    if (options.classId && OPERATIVE_CLASSES[options.classId]) {
+      const cls = OPERATIVE_CLASSES[options.classId];
+      p.classId = cls.id;
+      p.className = cls.name;
+      p.maxHp = cls.maxHp;
+      p.hp = cls.maxHp;
+      p.credits = cls.startingCredits;
+      p.potions = [...cls.starterPotions];
+    }
+    if (isDraft) {
+      p.masterDeck = createStarterDeck(p.classId, true);
+    }
     if (!p.starterRelicChoices || p.starterRelicChoices.length === 0) {
       p.starterRelicChoices = rollStarterRelicChoices(3);
     }
   }
+
+  updateCareerStat(prof => {
+    prof.runsStarted = (prof.runsStarted || 0) + 1;
+  });
+
   if (!state.combatLog) state.combatLog = [];
-  state.combatLog.push('[SYSTEM] Select 1 Powerful Starter Relic to initialize run.');
+  state.combatLog.push(`[SYSTEM] Threat Level ${state.threatLevel} Run Initialized. Select Starter Relic.`);
   return true;
 }
 
@@ -817,21 +907,21 @@ export function selectStarterRelicTransaction(state, playerId, relicId) {
 
   const ctx = createBattleContext(state, p, null);
   relicDef.hooks?.onPickup?.({ player: p, relicState, ctx });
-  ctx.log(`[BOOT] ${p.name} initialized with ${relicDef.name}!`);
+  ctx.log(`[BOOT] ${p.name} (${p.className || 'OPERATIVE'}) initialized with ${relicDef.name}!`);
 
   const allChosen = Object.values(state.players || {}).every(
     pl => !pl.starterRelicChoices || pl.starterRelicChoices.length === 0
   );
   if (allChosen) {
     state.phase = 'map';
-    ctx.log('[MAP] Sector Map online. Select a Floor 1 node on the branching tree.');
+    ctx.log('[MAP] Sector Tree Map online. Select a Floor 1 room.');
   }
   return true;
 }
 
 export function selectMapNodeTransaction(state, playerId, nodeId) {
   if (!state || state.phase !== 'map') return false;
-  if (!state.map) state.map = generateSectorMap(12);
+  if (!state.map) state.map = generateSectorMap(12, state.mutators);
 
   const selectable = getSelectableNodeIds(state.map);
   if (!selectable.includes(nodeId)) return false;
@@ -845,10 +935,16 @@ export function selectMapNodeTransaction(state, playerId, nodeId) {
   state.map.currentRoomType = node.roomType;
   state.floor = node.floor;
 
+  updateCareerStat(prof => {
+    const absFloor = ((state.sectorNumber || 1) - 1) * 12 + node.floor;
+    if (absFloor > (prof.highestFloor || 1)) prof.highestFloor = absFloor;
+  });
+
   const roomMeta = MAP_ROOM_TYPES[node.roomType] || MAP_ROOM_TYPES.combat;
   if (!state.combatLog) state.combatLog = [];
-  state.combatLog.push(`[MAP] Deployed to Floor ${node.floor}: ${roomMeta.name}.`);
+  state.combatLog.push(`[MAP] Floor ${node.floor}: Entered ${roomMeta.name}.`);
 
+  // 1. Forge / Rest Station
   if (node.roomType === 'upgrade') {
     state.phase = 'loot';
     for (const pid in state.players) {
@@ -856,24 +952,166 @@ export function selectMapNodeTransaction(state, playerId, nodeId) {
       if (!p.isAlive) continue;
       const healAmt = Math.max(8, Math.floor(p.maxHp * 0.25));
       p.hp = Math.min(p.maxHp, p.hp + healAmt);
-      p.pendingLoot = generateRoomLoot(p, 'upgrade', false);
+      p.pendingLoot = generateRoomLoot(p, 'upgrade', false, state);
     }
     state.combatLog.push('[FORGE] Restored 25% HP. Upgrade a card in your deck before continuing.');
     return true;
   }
 
+  // 2. Supply Vault
   if (node.roomType === 'treasure') {
     state.phase = 'loot';
     for (const pid in state.players) {
       const p = state.players[pid];
       if (!p.isAlive) continue;
-      p.pendingLoot = generateRoomLoot(p, 'treasure', false);
+      p.credits = (p.credits || 0) + 45;
+      p.pendingLoot = generateRoomLoot(p, 'treasure', false, state);
     }
-    state.combatLog.push('[VAULT] Supply Cache unlocked! Claim your Relic and supplies.');
+    state.combatLog.push('[VAULT] Supply Cache unlocked (+45 CR)! Claim your Relic and supplies.');
     return true;
   }
 
+  // 3. Black Market Shop (`shop`)
+  if (node.roomType === 'shop') {
+    state.phase = 'shop';
+    for (const pid in state.players) {
+      const p = state.players[pid];
+      if (!p.isAlive) continue;
+      p.shopStock = generateShopStock(p, state.floor);
+    }
+    state.combatLog.push('[MARKET] Connected to Black Market Terminal.');
+    return true;
+  }
+
+  // 4. Narrative Mystery Event (`event`)
+  if (node.roomType === 'event') {
+    state.phase = 'event';
+    const eventIds = Object.keys(EVENT_REGISTRY);
+    state.activeEventId = eventIds[Math.floor(Math.random() * eventIds.length)];
+    state.combatLog.push(`[EVENT] Encountered ${EVENT_REGISTRY[state.activeEventId].title}.`);
+    return true;
+  }
+
+  // 5. Combat Encounters (`combat`, `elite`, `anomaly`, `boss`)
   startFloorCombat(state, false, node.roomType);
+  return true;
+}
+
+/**
+ * Resolves a player's choice in a Narrative Mystery Event (`phase: 'event'`).
+ */
+export function resolveEventChoiceTransaction(state, playerId, choiceId) {
+  if (!state || state.phase !== 'event') return false;
+  const p = state.players?.[playerId];
+  if (!p) return false;
+
+  const evDef = EVENT_REGISTRY[state.activeEventId] || Object.values(EVENT_REGISTRY)[0];
+  const choice = (evDef?.choices || []).find(c => c.id === choiceId) || evDef?.choices?.[0];
+  if (!choice) return false;
+
+  const ctx = createBattleContext(state, p, null);
+  const summary = choice.resolve(p, state, ctx);
+  ctx.log(`[EVENT] ${evDef.title}: ${summary}`);
+
+  checkAndAdvanceToMap(state);
+  return true;
+}
+
+/**
+ * Purchases an item or service in the Black Market Shop (`phase: 'shop'`).
+ */
+export function buyShopItemTransaction(state, playerId, actionType, payload = {}) {
+  if (!state || state.phase !== 'shop') return false;
+  const p = state.players?.[playerId];
+  if (!p || !p.shopStock) return false;
+
+  const stock = p.shopStock;
+  const ctx = createBattleContext(state, p, null);
+
+  if (actionType === 'card') {
+    const idx = (stock.cards || []).findIndex(c => c.shopItemId === payload.shopItemId);
+    if (idx === -1) return false;
+    const item = stock.cards[idx];
+    if ((p.credits || 0) < item.costCredits) return false;
+
+    p.credits -= item.costCredits;
+    const newCard = {
+      instanceId: 'C_' + Math.random().toString(36).substring(2, 8),
+      defId: item.defId,
+      upgraded: Boolean(item.upgraded)
+    };
+    p.masterDeck.push(newCard);
+    stock.cards.splice(idx, 1);
+    ctx.log(`[MARKET] Purchased ${resolveCard(newCard)?.name} for ${item.costCredits} CR.`);
+    return true;
+  }
+
+  if (actionType === 'relic') {
+    const idx = (stock.relics || []).findIndex(r => r.shopItemId === payload.shopItemId);
+    if (idx === -1) return false;
+    const item = stock.relics[idx];
+    if ((p.credits || 0) < item.costCredits) return false;
+
+    p.credits -= item.costCredits;
+    const rDef = RELIC_REGISTRY[item.relicId];
+    if (rDef && !p.relics.some(r => r.id === rDef.id)) {
+      const relicState = { id: rDef.id, counter: 0 };
+      p.relics.push(relicState);
+      rDef.hooks?.onPickup?.({ player: p, relicState, ctx });
+    }
+    stock.relics.splice(idx, 1);
+    ctx.log(`[MARKET] Purchased Relic: ${rDef?.name} for ${item.costCredits} CR.`);
+    return true;
+  }
+
+  if (actionType === 'potion') {
+    const idx = (stock.potions || []).findIndex(pt => pt.shopItemId === payload.shopItemId);
+    if (idx === -1) return false;
+    const item = stock.potions[idx];
+    if ((p.credits || 0) < item.costCredits) return false;
+
+    p.credits -= item.costCredits;
+    if (!Array.isArray(p.potions)) p.potions = [null, null, null];
+    let slotIdx = p.potions.findIndex(s => s === null);
+    if (slotIdx === -1) slotIdx = 2;
+    p.potions[slotIdx] = item.potionId;
+    stock.potions.splice(idx, 1);
+    ctx.log(`[MARKET] Purchased ${POTION_REGISTRY[item.potionId]?.name} for ${item.costCredits} CR.`);
+    return true;
+  }
+
+  if (actionType === 'purge' && stock.purgeAvailable) {
+    if ((p.credits || 0) < stock.purgeCost || (p.masterDeck?.length || 0) <= 5) return false;
+    const cardIdx = p.masterDeck.findIndex(c => c.instanceId === payload.instanceId);
+    if (cardIdx === -1) return false;
+
+    p.credits -= stock.purgeCost;
+    const [removed] = p.masterDeck.splice(cardIdx, 1);
+    p.shopPurgesUsed = (p.shopPurgesUsed || 0) + 1;
+    stock.purgeAvailable = false;
+    ctx.log(`[MARKET] Purged ${resolveCard(removed)?.name} from Master Deck!`);
+    return true;
+  }
+
+  if (actionType === 'upgrade' && stock.upgradeAvailable) {
+    if ((p.credits || 0) < stock.upgradeCost) return false;
+    const card = p.masterDeck.find(c => c.instanceId === payload.instanceId && !c.upgraded);
+    if (!card) return false;
+
+    p.credits -= stock.upgradeCost;
+    card.upgraded = true;
+    stock.upgradeAvailable = false;
+    ctx.log(`[MARKET] Upgraded card to ${resolveCard(card)?.name}!`);
+    return true;
+  }
+
+  return false;
+}
+
+export function leaveShopTransaction(state, playerId) {
+  const p = state?.players?.[playerId];
+  if (p) p.shopStock = null;
+  checkAndAdvanceToMap(state);
   return true;
 }
 
@@ -886,6 +1124,9 @@ export function startFloorCombat(state, isInitialFloor = false, roomType = 'comb
   state.currentRoomType = roomType;
   const pCount = Object.keys(state.players || {}).length || 1;
   state.enemies = spawnEnemiesForEncounter(state.floor || 1, pCount, state, roomType);
+
+  const isSnecko = Array.isArray(state.mutators) && state.mutators.includes('volatile_compiler');
+  const startDrawCount = isSnecko ? 7 : 5;
 
   for (const pid in state.players) {
     const p = state.players[pid];
@@ -902,14 +1143,14 @@ export function startFloorCombat(state, isInitialFloor = false, roomType = 'comb
     p.statuses = createDefaultStatuses();
 
     if (!p.masterDeck || p.masterDeck.length === 0) {
-      p.masterDeck = createStarterDeck();
+      p.masterDeck = createStarterDeck(p.classId);
     }
     p.deck = JSON.parse(JSON.stringify(p.masterDeck)).sort(() => Math.random() - 0.5);
     p.hand = [];
     p.discard = [];
     p.exhaust = [];
 
-    drawCards(p, 5, state);
+    drawCards(p, startDrawCount, state);
   }
 
   if (!state.combatLog) state.combatLog = [];
@@ -934,7 +1175,8 @@ export function playCardTransaction(state, playerId, cardInstanceId, targetEnemy
 
   const cardInstance = me.hand[cardIdx];
   const def = resolveCard(cardInstance);
-  if (!def || me.energy < def.cost) return false;
+  const effCost = getEffectiveCardCost(cardInstance, def);
+  if (!def || me.energy < effCost) return false;
 
   const preferredEnemy = state.enemies?.[targetEnemyIdx];
   const target = (preferredEnemy && preferredEnemy.hp > 0)
@@ -943,7 +1185,7 @@ export function playCardTransaction(state, playerId, cardInstanceId, targetEnemy
 
   const ctx = createBattleContext(state, me, target);
 
-  me.energy -= def.cost;
+  me.energy -= effCost;
   me.hand.splice(cardIdx, 1);
 
   if (typeof def.onPlay === 'function') {
@@ -952,7 +1194,15 @@ export function playCardTransaction(state, playerId, cardInstanceId, targetEnemy
 
   if (def.type === 'attack') {
     me.turnAttacksPlayed = (me.turnAttacksPlayed || 0) + 1;
+    // Mutator: Vampiric Sector (`hyper_regen`) heals 2 HP per Attack played
+    if (Array.isArray(state.mutators) && state.mutators.includes('hyper_regen')) {
+      ctx.healEntity(me, 2, 'Vampiric Sector');
+    }
   }
+
+  updateCareerStat(prof => {
+    prof.cardsPlayed = (prof.cardsPlayed || 0) + 1;
+  });
 
   triggerHook('onCardPlayed', {
     player: me,
@@ -1016,7 +1266,7 @@ export function discardPotionTransaction(state, playerId, slotIdx) {
 }
 
 // ----------------------------------------------------------------------------
-// 7. Post-Encounter Loot Generation (No Relics in Normal Combat!)
+// 7. Post-Encounter Loot Generation (Credits + Cards + Potions; Relics in Elites/Vaults)
 // ----------------------------------------------------------------------------
 
 export function checkAndHandleFloorVictory(state) {
@@ -1027,17 +1277,32 @@ export function checkAndHandleFloorVictory(state) {
   const roomType = state.currentRoomType || state.map?.currentRoomType || 'combat';
   const isMandatoryRoom = roomType === 'anomaly' || Boolean(MAP_ROOM_TYPES[roomType]?.mandatoryLoot);
 
+  const bountyMult = (Array.isArray(state.mutators) && state.mutators.includes('elite_bounty')) ? 1.5 : 1.0;
+  const baseCredits = roomType === 'boss' ? 75 : (roomType === 'elite' ? 45 : (roomType === 'anomaly' ? 50 : 24));
+  const earnedCredits = Math.floor((baseCredits + (state.floor || 1) * 3) * bountyMult);
+
+  updateCareerStat(prof => {
+    prof.enemiesDefeated = (prof.enemiesDefeated || 0) + (state.enemies?.length || 1);
+    if (roomType === 'boss' && (state.floor || 1) >= 12) {
+      prof.sectorsCleared = (prof.sectorsCleared || 0) + 1;
+      if ((state.threatLevel || 0) > (prof.highestThreatCleared || 0)) {
+        prof.highestThreatCleared = state.threatLevel || 0;
+      }
+    }
+  });
+
   state.combatLog.push(
     isMandatoryRoom
-      ? `[VICTORY] Anomaly Cleared! WARNING: Containment Loot is MANDATORY pickup.`
-      : `[VICTORY] Floor ${state.floor} cleared! Inspecting loot cache...`
+      ? `[VICTORY] Anomaly Cleared (+${earnedCredits} CR)! WARNING: Containment Loot is MANDATORY pickup.`
+      : `[VICTORY] Floor ${state.floor} cleared! Earned +${earnedCredits} CR.`
   );
 
   for (const pid in state.players) {
     const p = state.players[pid];
     if (!p.isAlive) continue;
+    p.credits = (p.credits || 0) + earnedCredits;
     triggerHook('onBattleVictory', { player: p, entity: p }, state);
-    p.pendingLoot = generateRoomLoot(p, roomType, isMandatoryRoom);
+    p.pendingLoot = generateRoomLoot(p, roomType, isMandatoryRoom, state);
   }
 
   state.phase = 'loot';
@@ -1047,10 +1312,9 @@ export function checkAndHandleFloorVictory(state) {
 export function generateRoomLoot(player, roomType = 'combat', isMandatory = false) {
   const items = [];
 
-  // 1. Card Draft (offered in combat, elite, anomaly, boss, treasure)
   if (roomType !== 'upgrade') {
     const pool = Object.values(CARD_REGISTRY).filter(
-      c => c.id !== 'inflict_vuln' && c.rarity !== 'starter'
+      c => c.id !== 'inflict_vuln' && c.rarity !== 'starter' && c.rarity !== 'curse'
     );
     const upgradeChance = (roomType === 'elite' || roomType === 'boss' || roomType === 'anomaly') ? 0.50 : 0.20;
     const picks = [...pool].sort(() => Math.random() - 0.5).slice(0, 3).map(c => ({
@@ -1066,7 +1330,7 @@ export function generateRoomLoot(player, roomType = 'combat', isMandatory = fals
     });
   }
 
-  // 2. Relic Drop: ONLY in elite, anomaly, treasure, or boss (NEVER in normal combat!)
+  // Relic Drop: ONLY in elite, anomaly, treasure, or boss (NEVER in normal combat!)
   const shouldDropRelic = ['elite', 'anomaly', 'treasure', 'boss'].includes(roomType);
   if (shouldDropRelic) {
     const ownedIds = new Set((player.relics || []).map(r => r.id));
@@ -1085,7 +1349,6 @@ export function generateRoomLoot(player, roomType = 'combat', isMandatory = fals
     }
   }
 
-  // 3. Potion Drop (guaranteed in elite, anomaly, treasure, upgrade; 55% in normal combat)
   const shouldDropPotion = roomType !== 'combat' || Math.random() < 0.55;
   if (shouldDropPotion) {
     const pKeys = Object.keys(POTION_REGISTRY);
@@ -1098,7 +1361,6 @@ export function generateRoomLoot(player, roomType = 'combat', isMandatory = fals
     });
   }
 
-  // 4. Card Upgrade Token (in upgrade, boss, anomaly, treasure; 25% in elite)
   if (['upgrade', 'boss', 'anomaly', 'treasure'].includes(roomType) || (roomType === 'elite' && Math.random() < 0.25)) {
     const hasUnupgraded = (player.masterDeck || []).some(c => !c.upgraded);
     if (hasUnupgraded) {
@@ -1209,8 +1471,9 @@ function checkAndAdvanceToMap(state) {
   if (allDone) {
     const selectable = getSelectableNodeIds(state.map);
     if (selectable.length === 0) {
-      state.map = generateSectorMap(12);
-      state.combatLog.push('[SECTOR CLEARED] New Sector Map generated!');
+      state.sectorNumber = (state.sectorNumber || 1) + 1;
+      state.map = generateSectorMap(12, state.mutators);
+      state.combatLog.push(`[SECTOR CLEARED] Advancing to Endless Sector ${state.sectorNumber}!`);
     }
     state.phase = 'map';
   }
@@ -1270,10 +1533,15 @@ export function endTurnTransaction(state, playerId) {
         pl.isAlive = true;
         pl.pendingLoot = null;
       }
-      state.map = generateSectorMap(12);
+      state.sectorNumber = 1;
+      state.map = generateSectorMap(12, state.mutators);
       state.phase = 'map';
       return true;
     }
+
+    const isSnecko = Array.isArray(state.mutators) && state.mutators.includes('volatile_compiler');
+    const isVamp = Array.isArray(state.mutators) && state.mutators.includes('hyper_regen');
+    const drawCount = isSnecko ? 7 : 5;
 
     for (const pid in state.players) {
       const p = state.players[pid];
@@ -1284,7 +1552,10 @@ export function endTurnTransaction(state, playerId) {
       p.isReady = false;
       p.discard.push(...p.hand);
       p.hand = [];
-      drawCards(p, 5, state);
+      if (isVamp && p.hp > 2) {
+        p.hp -= 2;
+      }
+      drawCards(p, drawCount, state);
       triggerHook('onTurnStart', { player: p, entity: p }, state);
     }
 

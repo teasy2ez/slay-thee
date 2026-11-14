@@ -57,45 +57,70 @@ body, html {
 #lobby-screen {
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: 14px;
 }
 
 .lobby-card {
   width: 100%;
-  max-width: 380px;
+  max-width: 430px;
+  max-height: 94dvh;
+  overflow-y: auto;
   background: var(--surface);
   border: 1px solid var(--border);
-  padding: 32px 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.logo {
-  font-size: 1.5rem;
-  letter-spacing: 0.16em;
-  font-weight: 900;
-}
-
-.subtitle {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  letter-spacing: 0.1em;
-}
-
-.form-group {
+  padding: 18px 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
+.lobby-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.career-badge {
+  font-size: 0.6rem;
+  font-weight: 800;
+  padding: 3px 7px;
+  background: var(--surface-raised);
+  border: 1px solid var(--accent-energy);
+  color: var(--accent-energy);
+  white-space: nowrap;
+}
+
+.logo {
+  font-size: 1.35rem;
+  letter-spacing: 0.14em;
+  font-weight: 900;
+}
+
+.subtitle {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.input-row {
+  display: flex;
+  gap: 8px;
+}
+
 input {
+  width: 100%;
   background: var(--bg);
   border: 1px solid var(--border);
   color: var(--text-main);
-  padding: 14px;
+  padding: 10px 12px;
   font-family: inherit;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   outline: none;
   text-transform: uppercase;
 }
@@ -104,13 +129,87 @@ input:focus {
   border-color: var(--border-focus);
 }
 
+.config-section {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.config-row-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.config-label {
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+}
+
+.config-desc {
+  font-size: 0.62rem;
+  color: var(--accent-shield);
+  line-height: 1.25;
+}
+
+.chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.select-chip {
+  font-size: 0.62rem;
+  font-weight: 800;
+  padding: 5px 8px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.select-chip.active {
+  border-color: var(--accent-energy);
+  color: var(--text-main);
+  background: rgba(234, 179, 8, 0.14);
+}
+
+.threat-stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.step-btn {
+  width: 22px;
+  height: 22px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.threat-val {
+  font-size: 0.68rem;
+  font-weight: 900;
+  color: var(--accent-dmg);
+  min-width: 44px;
+  text-align: center;
+}
+
 .btn {
   background: var(--surface-raised);
   border: 1px solid var(--border);
   color: var(--text-main);
-  padding: 14px;
+  padding: 12px;
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   letter-spacing: 0.05em;
   cursor: pointer;
   touch-action: manipulation;
@@ -143,8 +242,25 @@ input:focus {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   color: var(--text-muted);
+  gap: 6px;
+}
+
+.credits-badge {
+  color: var(--accent-energy);
+  font-weight: 800;
+  font-size: 0.66rem;
+}
+
+.hud-mini-btn {
+  background: var(--surface-raised);
+  border: 1px solid var(--border-focus);
+  color: var(--text-main);
+  font-size: 0.6rem;
+  font-weight: 800;
+  padding: 2px 6px;
+  cursor: pointer;
 }
 
 .teammates-bar {
@@ -156,7 +272,7 @@ input:focus {
   padding: 2px 6px;
   background: var(--surface);
   border: 1px solid var(--border);
-  font-size: 0.65rem;
+  font-size: 0.62rem;
 }
 
 .teammate-chip.dead {
@@ -491,6 +607,7 @@ input:focus {
   color: var(--text-muted);
   letter-spacing: 0.04em;
   font-weight: 700;
+  cursor: pointer;
 }
 
 .end-turn-btn {
@@ -630,17 +747,9 @@ input:focus {
   100% { opacity: 0; transform: translate(-50%, -28px) scale(0.95); }
 }
 
-.anim-hit {
-  animation: hitShake 0.36s ease-out;
-}
-
-.anim-shield {
-  animation: shieldPulse 0.42s ease-out;
-}
-
-.anim-lunge {
-  animation: enemyLunge 0.34s ease-out;
-}
+.anim-hit { animation: hitShake 0.36s ease-out; }
+.anim-shield { animation: shieldPulse 0.42s ease-out; }
+.anim-lunge { animation: enemyLunge 0.34s ease-out; }
 
 .floating-pop {
   position: absolute;
@@ -713,6 +822,15 @@ input:focus {
   color: var(--text-muted);
 }
 
+.event-flavor {
+  font-size: 0.72rem;
+  color: var(--text-main);
+  line-height: 1.4;
+  padding: 8px;
+  background: var(--bg);
+  border-left: 3px solid var(--accent-weak);
+}
+
 .skip-btn {
   padding: 5px 10px;
   font-size: 0.65rem;
@@ -770,6 +888,11 @@ input:focus {
   flex-direction: column;
   gap: 3px;
   cursor: pointer;
+}
+
+.reward-option.disabled {
+  opacity: 0.38;
+  pointer-events: none;
 }
 
 .reward-option:active {
@@ -903,27 +1026,10 @@ input:focus {
   transform: translate(-50%, -50%) scale(1.07);
 }
 
-.map-tree-node.selectable.node-anomaly {
-  border-color: var(--accent-dmg);
-  color: #fca5a5;
-}
-
-.map-tree-node.selectable.node-elite {
-  border-color: var(--accent-vuln);
-  color: #fdba74;
-}
-
-.map-tree-node.selectable.node-upgrade {
-  border-color: var(--accent-upgrade);
-  color: #86efac;
-}
-
-.map-tree-node.selectable.node-treasure {
-  border-color: var(--accent-shield);
-  color: #7dd3fc;
-}
-
-.map-tree-node.selectable.node-boss {
-  border-color: var(--accent-weak);
-  color: #d8b4fe;
-}
+.map-tree-node.selectable.node-anomaly { border-color: var(--accent-dmg); color: #fca5a5; }
+.map-tree-node.selectable.node-elite { border-color: var(--accent-vuln); color: #fdba74; }
+.map-tree-node.selectable.node-upgrade { border-color: var(--accent-upgrade); color: #86efac; }
+.map-tree-node.selectable.node-treasure { border-color: var(--accent-shield); color: #7dd3fc; }
+.map-tree-node.selectable.node-shop { border-color: var(--accent-energy); color: #fde047; }
+.map-tree-node.selectable.node-event { border-color: var(--accent-weak); color: #e9d5ff; }
+.map-tree-node.selectable.node-boss { border-color: var(--accent-thorns); color: #fda4af; }

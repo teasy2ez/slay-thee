@@ -10,7 +10,7 @@ export const MAP_ROOM_TYPES = {
     shortLabel: '⚔️ COMBAT',
     cssClass: 'node-combat',
     mandatoryLoot: false,
-    description: 'Hostile patrol (1-3 enemies). Drops Card & Potion loot (No Relics).'
+    description: 'Hostile patrol (1-3 enemies). Drops Credits, Card Draft & Potion loot.'
   },
   elite: {
     id: 'elite',
@@ -19,7 +19,25 @@ export const MAP_ROOM_TYPES = {
     shortLabel: '💀 ELITE',
     cssClass: 'node-elite',
     mandatoryLoot: false,
-    description: 'High-danger Elite encounter. Drops Relic + Upgraded/Rare Card + Potion.'
+    description: 'High-danger Elite encounter. Drops Relic + High Credits + Upgraded/Rare Card + Potion.'
+  },
+  event: {
+    id: 'event',
+    name: 'MYSTERY EVENT',
+    icon: '❓',
+    shortLabel: '❓ EVENT',
+    cssClass: 'node-event',
+    mandatoryLoot: false,
+    description: 'Interactive Sector Encounter: Risk/reward narrative choices, card cloning, shrines, and mutagens.'
+  },
+  shop: {
+    id: 'shop',
+    name: 'BLACK MARKET',
+    icon: '🛒',
+    shortLabel: '🛒 MARKET',
+    cssClass: 'node-shop',
+    mandatoryLoot: false,
+    description: 'Spend Credits (CR) on Relics, Upgraded Cards, Potions, or Deck Card Removal (Purge).'
   },
   anomaly: {
     id: 'anomaly',
@@ -46,7 +64,7 @@ export const MAP_ROOM_TYPES = {
     shortLabel: '📦 VAULT',
     cssClass: 'node-treasure',
     mandatoryLoot: false,
-    description: 'Encrypted cache containing a Relic, Potion, and Card Upgrade.'
+    description: 'Encrypted cache containing a Relic, Potion, Credits, and Card Upgrade.'
   },
   boss: {
     id: 'boss',
@@ -55,24 +73,36 @@ export const MAP_ROOM_TYPES = {
     shortLabel: '👑 BOSS',
     cssClass: 'node-boss',
     mandatoryLoot: false,
-    description: 'Sector Boss encounter. Clearing advances the sector and drops Boss Relic + Upgraded Cards.'
+    description: 'Sector Boss encounter. Clearing advances the sector (or Endless Mode) and drops Boss Relic + Upgraded Cards.'
   }
 };
 
-function pickRoomTypeForRow(floor, colIdx) {
+function pickRoomTypeForRow(floor, colIdx, mutators = []) {
+  const hasEliteSwarm = Array.isArray(mutators) && mutators.includes('elite_bounty');
   if (floor === 1) return 'combat';
   if (floor === 6 || floor === 12) return 'boss';
-  if (floor === 5 || floor === 11) return colIdx === 0 ? 'upgrade' : (colIdx === 1 ? 'combat' : 'upgrade');
+  if (floor === 5 || floor === 11) {
+    return colIdx === 0 ? 'upgrade' : (colIdx === 1 ? 'shop' : 'upgrade');
+  }
   if (floor === 3 || floor === 8) {
-    return colIdx === 1 ? 'treasure' : (colIdx === 0 ? 'anomaly' : 'elite');
+    return colIdx === 1 ? 'treasure' : (colIdx === 0 ? 'shop' : 'event');
   }
 
   const roll = Math.random();
-  if (roll < 0.44) return 'combat';
-  if (roll < 0.64) return 'elite';
-  if (roll < 0.80) return 'anomaly';
-  if (roll < 0.92) return 'upgrade';
-  return 'treasure';
+  if (hasEliteSwarm) {
+    if (roll < 0.25) return 'combat';
+    if (roll < 0.55) return 'elite';
+    if (roll < 0.72) return 'anomaly';
+    if (roll < 0.86) return 'event';
+    return 'shop';
+  }
+
+  if (roll < 0.34) return 'combat';
+  if (roll < 0.50) return 'event';
+  if (roll < 0.65) return 'elite';
+  if (roll < 0.78) return 'shop';
+  if (roll < 0.90) return 'anomaly';
+  return 'upgrade';
 }
 
 function computeNodeXPct(col, nodeCount) {
@@ -86,17 +116,16 @@ function computeNodeXPct(col, nodeCount) {
 /**
  * Generates a 12-floor branching tree map with explicit `xPct` coordinates and parent->child `nextIds`.
  */
-export function generateSectorMap(totalFloors = 12) {
+export function generateSectorMap(totalFloors = 12, mutators = []) {
   const rows = [];
 
   for (let floor = 1; floor <= totalFloors; floor++) {
     const isBoss = floor === 6 || floor === totalFloors;
-    // Alternate between 2 and 3 branches (with 1 boss convergence node on floors 6 and 12)
     const nodeCount = isBoss ? 1 : (floor === 1 ? 3 : (floor % 2 === 0 ? 2 : 3));
     const rowNodes = [];
 
     for (let col = 0; col < nodeCount; col++) {
-      const roomType = pickRoomTypeForRow(floor, col);
+      const roomType = pickRoomTypeForRow(floor, col, mutators);
       const meta = MAP_ROOM_TYPES[roomType];
       rowNodes.push({
         id: `F${floor}_N${col}`,
@@ -114,13 +143,11 @@ export function generateSectorMap(totalFloors = 12) {
     rows.push(rowNodes);
   }
 
-  // Connect forward tree edges between floor `r` and floor `r + 1`
   for (let r = 0; r < rows.length - 1; r++) {
     const currentRow = rows[r];
     const nextRow = rows[r + 1];
 
     if (nextRow.length === 1) {
-      // Converge all branches into Boss node
       for (const node of currentRow) {
         node.nextIds.push(nextRow[0].id);
       }
@@ -128,17 +155,14 @@ export function generateSectorMap(totalFloors = 12) {
     }
 
     if (currentRow.length === 1) {
-      // Fan out from Boss node to all branches on the next floor
       for (const target of nextRow) {
         currentRow[0].nextIds.push(target.id);
       }
       continue;
     }
 
-    // Standard branching between 2->3 or 3->2 nodes without crossing edges
     for (let i = 0; i < currentRow.length; i++) {
       const node = currentRow[i];
-      // Find closest node(s) in `nextRow` by `xPct`
       const sortedByDist = [...nextRow].sort(
         (a, b) => Math.abs(a.xPct - node.xPct) - Math.abs(b.xPct - node.xPct)
       );
@@ -148,7 +172,6 @@ export function generateSectorMap(totalFloors = 12) {
       }
     }
 
-    // Guarantee every node in `nextRow` has at least one parent edge
     for (const target of nextRow) {
       const hasParent = currentRow.some(n => n.nextIds.includes(target.id));
       if (!hasParent) {

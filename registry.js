@@ -11,6 +11,19 @@ import {
   findMapNode,
   getSelectableNodeIds
 } from "./map.js";
+import {
+  OPERATIVE_CLASSES,
+  RUN_MUTATORS,
+  CURSE_CARDS,
+  EVENT_REGISTRY,
+  generateShopStock,
+  grantRandomNonStarterRelic,
+  purgeWeakestCard,
+  transformStarterCards,
+  loadCareerProfile,
+  saveCareerProfile,
+  updateCareerStat
+} from "./replayability.js";
 
 export {
   CARD_REGISTRY,
@@ -21,7 +34,18 @@ export {
   MAP_ROOM_TYPES,
   generateSectorMap,
   findMapNode,
-  getSelectableNodeIds
+  getSelectableNodeIds,
+  OPERATIVE_CLASSES,
+  RUN_MUTATORS,
+  CURSE_CARDS,
+  EVENT_REGISTRY,
+  generateShopStock,
+  grantRandomNonStarterRelic,
+  purgeWeakestCard,
+  transformStarterCards,
+  loadCareerProfile,
+  saveCareerProfile,
+  updateCareerStat
 };
 
 /**
@@ -130,7 +154,7 @@ export const STATUS_REGISTRY = {
 
 /**
  * ENEMY_REGISTRY
- * Tuned upwards for higher challenge and multi-enemy encounters.
+ * Includes 4 standard/elite archetypes + 3 distinct Sector Bosses (`overlord_core`, `hydra_hivemind`, `chrono_warden`).
  */
 export const ENEMY_REGISTRY = {
   sentinel_drone: {
@@ -329,9 +353,11 @@ export const ENEMY_REGISTRY = {
     }
   },
 
+  // --- BOSS 1: OVERLORD CORE ---
   overlord_core: {
     id: 'overlord_core',
-    namePrefix: 'OVERLORD-BOSS',
+    isBoss: true,
+    namePrefix: 'OVERLORD-CORE',
     baseHp: 90,
     hpPerFloor: 12,
     behaviorTree: {
@@ -369,6 +395,102 @@ export const ENEMY_REGISTRY = {
             {
               weight: 50,
               intent: { id: 'bio_barrage', type: 'multi_attack', value: 6, hits: 2, status: { id: 'corrode', stacks: 3 }, label: 'BIO BARRAGE' }
+            }
+          ]
+        }
+      ]
+    }
+  },
+
+  // --- BOSS 2: HYDRA HIVEMIND ---
+  hydra_hivemind: {
+    id: 'hydra_hivemind',
+    isBoss: true,
+    namePrefix: 'HYDRA-QUEEN',
+    baseHp: 84,
+    hpPerFloor: 11,
+    behaviorTree: {
+      type: 'selector',
+      children: [
+        {
+          type: 'condition',
+          check: (enemy) => (enemy.aiState?.turn || 0) === 0,
+          child: {
+            type: 'action',
+            intent: {
+              id: 'spore_cataclysm',
+              type: 'debuff',
+              status: { id: 'corrode', stacks: 5 },
+              secondaryStatus: { id: 'vulnerable', stacks: 2 },
+              label: 'SPORE CATACLYSM'
+            }
+          }
+        },
+        {
+          type: 'condition',
+          check: (enemy) => (enemy.aiState?.turn || 0) % 3 === 2,
+          child: {
+            type: 'action',
+            intent: {
+              id: 'thorn_regrowth',
+              type: 'defend_buff',
+              block: 12,
+              status: { id: 'thorns', stacks: 2 },
+              label: 'REGROWTH (+12 SHD / +2 THORN)'
+            }
+          }
+        },
+        {
+          type: 'weighted',
+          options: [
+            {
+              weight: 55,
+              intent: { id: 'hydra_fangs', type: 'multi_attack', value: 5, hits: 3, label: 'HYDRA TRIPLE-FANG' }
+            },
+            {
+              weight: 45,
+              intent: { id: 'acid_tail', type: 'attack_debuff', value: 13, hits: 1, status: { id: 'weak', stacks: 2 }, label: 'ACID TAIL' }
+            }
+          ]
+        }
+      ]
+    }
+  },
+
+  // --- BOSS 3: CHRONO WARDEN ---
+  chrono_warden: {
+    id: 'chrono_warden',
+    isBoss: true,
+    namePrefix: 'CHRONO-WARDEN',
+    baseHp: 96,
+    hpPerFloor: 12,
+    behaviorTree: {
+      type: 'selector',
+      children: [
+        {
+          type: 'condition',
+          check: (enemy) => enemy.hp <= enemy.maxHp * 0.45 && enemy.aiState?.lastMoveId !== 'time_rewind',
+          child: {
+            type: 'action',
+            intent: {
+              id: 'time_rewind',
+              type: 'defend_buff',
+              block: 18,
+              status: { id: 'strength', stacks: 3 },
+              label: 'TIME SHIFT (+18 SHD / +3 STR)'
+            }
+          }
+        },
+        {
+          type: 'weighted',
+          options: [
+            {
+              weight: 50,
+              intent: { id: 'temporal_rend', type: 'multi_attack', value: 6, hits: 2, status: { id: 'vulnerable', stacks: 2 }, label: 'TEMPORAL REND' }
+            },
+            {
+              weight: 50,
+              intent: { id: 'epoch_judgment', type: 'attack_defend', value: 14, hits: 1, block: 8, label: 'EPOCH JUDGMENT' }
             }
           ]
         }

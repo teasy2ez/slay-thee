@@ -11,13 +11,43 @@
     <!-- Lobby Screen -->
     <div id="lobby-screen" class="screen">
       <div class="lobby-card">
-        <h1 class="logo">SLAY THEE</h1>
-        <p class="subtitle">ROGUELIKE DECKBUILDER // SYNC</p>
+        <div class="lobby-header-row">
+          <div>
+            <h1 class="logo">SLAY THEE</h1>
+            <p class="subtitle">ROGUELIKE DECKBUILDER // SYNC</p>
+          </div>
+          <div id="career-badge" class="career-badge">CLEARS: 0 · BEST: F1</div>
+        </div>
+
         <div class="form-group">
-          <input type="text" id="player-name-input" placeholder="AGENT NAME" maxlength="12" autofocus>
-          <input type="text" id="room-code-input" placeholder="ROOM CODE (BLANK TO CREATE)" maxlength="6">
-          <button id="btn-join" class="btn primary">CONNECT ROOM (FIRESTORE)</button>
-          <button id="btn-solo" class="btn secondary">SOLO LOCAL MISSION</button>
+          <div class="input-row">
+            <input type="text" id="player-name-input" placeholder="AGENT NAME" maxlength="12" autofocus>
+            <input type="text" id="room-code-input" placeholder="ROOM CODE" maxlength="6">
+          </div>
+
+          <!-- Operative Class Picker -->
+          <div class="config-section">
+            <div class="config-label">SELECT OPERATIVE CLASS</div>
+            <div id="class-selector" class="chip-grid"></div>
+            <div id="class-desc" class="config-desc"></div>
+          </div>
+
+          <!-- Threat Level & Run Mutators -->
+          <div class="config-section">
+            <div class="config-row-between">
+              <span class="config-label">THREAT LEVEL (ASCENSION)</span>
+              <div class="threat-stepper">
+                <button id="btn-threat-down" class="step-btn" type="button">-</button>
+                <span id="threat-val" class="threat-val">LVL 0</span>
+                <button id="btn-threat-up" class="step-btn" type="button">+</button>
+              </div>
+            </div>
+            <div class="config-label" style="margin-top: 4px;">RUN MUTATORS (OPTIONAL)</div>
+            <div id="mutator-selector" class="chip-grid"></div>
+          </div>
+
+          <button id="btn-solo" class="btn primary">LAUNCH SOLO MISSION</button>
+          <button id="btn-join" class="btn secondary">CONNECT MULTIPLAYER ROOM (FIRESTORE)</button>
         </div>
       </div>
     </div>
@@ -26,8 +56,10 @@
     <div id="combat-screen" class="screen hidden">
       <header class="combat-top">
         <div class="top-meta">
-          <span id="room-badge">ROOM: ----</span>
+          <span id="room-badge">SOLO</span>
           <span id="floor-badge">FLOOR 1</span>
+          <span id="credits-badge" class="credits-badge">💰 75 CR</span>
+          <button id="btn-open-deck" class="hud-mini-btn" type="button">🃏 DECK</button>
           <div id="teammates-bar" class="teammates-bar"></div>
         </div>
 
@@ -53,7 +85,7 @@
 
           <div id="player-vitals" class="player-vitals">
             <div class="vitals-top-row">
-              <div id="pile-stats" class="pile-stats">DK:0 · DS:0 · EX:0</div>
+              <div id="pile-stats" class="pile-stats" title="Tap to inspect Deck & Piles">DK:0 · DS:0 · EX:0</div>
               <div class="status-tags" id="player-statuses"></div>
             </div>
             <div class="meter-bar">
@@ -106,6 +138,42 @@
           </div>
           <p id="reward-modal-sub" class="overlay-sub">Pick up desired loot or skip remaining optional items:</p>
           <div id="reward-choices" class="reward-choices"></div>
+        </div>
+      </div>
+
+      <!-- 4. Black Market Shop Overlay (`phase: 'shop'`) -->
+      <div id="shop-modal" class="overlay-modal hidden">
+        <div class="overlay-panel shop-panel">
+          <div class="overlay-header">
+            <span class="overlay-title">🛒 BLACK MARKET TERMINAL</span>
+            <span id="shop-credits-badge" class="credits-badge">💰 75 CR</span>
+            <button id="btn-leave-shop" class="btn skip-btn">LEAVE MARKET</button>
+          </div>
+          <p class="overlay-sub">Spend Credits on Cards, Relics, Potions, or Deck Purge / Upgrade:</p>
+          <div id="shop-choices" class="reward-choices"></div>
+        </div>
+      </div>
+
+      <!-- 5. Narrative Mystery Event Overlay (`phase: 'event'`) -->
+      <div id="event-modal" class="overlay-modal hidden">
+        <div class="overlay-panel event-panel">
+          <div class="overlay-header">
+            <span id="event-title" class="overlay-title">❓ SECTOR EVENT</span>
+          </div>
+          <p id="event-flavor" class="event-flavor"></p>
+          <div id="event-choices" class="reward-choices"></div>
+        </div>
+      </div>
+
+      <!-- 6. Deck & Pile Inspector Overlay -->
+      <div id="deck-modal" class="overlay-modal hidden">
+        <div class="overlay-panel">
+          <div class="overlay-header">
+            <span id="deck-modal-title" class="overlay-title">🃏 DECK INSPECTOR</span>
+            <button id="btn-close-deck" class="btn skip-btn">CLOSE</button>
+          </div>
+          <div id="deck-filter-tabs" class="chip-grid"></div>
+          <div id="deck-cards-list" class="reward-choices"></div>
         </div>
       </div>
     </div>
