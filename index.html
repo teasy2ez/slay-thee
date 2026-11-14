@@ -78,6 +78,7 @@
 
       <footer class="combat-bot">
         <div id="player-ribbon" class="player-ribbon">
+          <div id="player-avatar" class="player-avatar"></div>
           <div class="energy-bubble">
             <span id="player-energy" class="energy-val">3</span>
             <span id="player-max-energy" class="energy-denom">/3</span>
@@ -145,7 +146,7 @@
       <div id="shop-modal" class="overlay-modal hidden">
         <div class="overlay-panel shop-panel">
           <div class="overlay-header">
-            <span class="overlay-title">🛒 BLACK MARKET TERMINAL</span>
+            <span class="overlay-title-with-art"><span id="shop-art" class="header-art-slot"></span> BLACK MARKET TERMINAL</span>
             <span id="shop-credits-badge" class="credits-badge">💰 75 CR</span>
             <button id="btn-leave-shop" class="btn skip-btn">LEAVE MARKET</button>
           </div>
@@ -158,7 +159,7 @@
       <div id="event-modal" class="overlay-modal hidden">
         <div class="overlay-panel event-panel">
           <div class="overlay-header">
-            <span id="event-title" class="overlay-title">❓ SECTOR EVENT</span>
+            <span class="overlay-title-with-art"><span id="event-art" class="header-art-slot"></span> <span id="event-title">❓ SECTOR EVENT</span></span>
           </div>
           <p id="event-flavor" class="event-flavor"></p>
           <div id="event-choices" class="reward-choices"></div>

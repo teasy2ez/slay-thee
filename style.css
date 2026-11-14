@@ -1033,3 +1033,146 @@ input:focus {
 .map-tree-node.selectable.node-shop { border-color: var(--accent-energy); color: #fde047; }
 .map-tree-node.selectable.node-event { border-color: var(--accent-weak); color: #e9d5ff; }
 .map-tree-node.selectable.node-boss { border-color: var(--accent-thorns); color: #fda4af; }
+
+
+/* ==========================================================================
+   Procedural Vector SVG Art System (Cards, Enemies, Relics, Potions, UI)
+   ========================================================================== */
+.art-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.card-art-box {
+  width: 100%;
+  height: 46px;
+  margin-top: 4px;
+  background: rgba(9, 9, 11, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.card-art-box .art-svg {
+  width: 44px;
+  height: 44px;
+}
+
+.enemy-card-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.enemy-art-box {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  background: #0d0d11;
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.enemy-card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.player-avatar {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border: 1px solid var(--border-focus);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.opt-with-art {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.opt-art-thumb {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  background: #0d0d11;
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.opt-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.inline-svg-icon {
+  display: inline-flex;
+  width: 13px;
+  height: 13px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.inline-svg-icon.sm {
+  width: 11px;
+  height: 11px;
+}
+
+.relic-chip,
+.potion-slot,
+.intent-chip,
+.tag,
+.config-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.header-art-slot {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  background: #0d0d11;
+  border: 1px solid var(--border);
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.overlay-title-with-art {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.map-tree-node {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.map-node-icon {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  flex-shrink: 0;
+}

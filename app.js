@@ -41,6 +41,14 @@ import {
   createBattleContext,
   loadCareerProfile
 } from "./engine.js";
+import {
+  getCardArtSvg,
+  getRelicArtSvg,
+  getPotionArtSvg,
+  getEnemyArtSvg,
+  getClassArtSvg,
+  getInteractionArtSvg
+} from "./art.js";
 
 // Your Firebase configuration
 const firebaseConfig = {
@@ -105,6 +113,7 @@ const enemyContainer = document.getElementById('enemy-container');
 const combatFeed = document.getElementById('combat-feed');
 
 const playerVitals = document.getElementById('player-vitals');
+const playerAvatar = document.getElementById('player-avatar');
 const playerEnergy = document.getElementById('player-energy');
 const playerMaxEnergy = document.getElementById('player-max-energy');
 const pileStats = document.getElementById('pile-stats');
@@ -129,11 +138,13 @@ const rewardChoices = document.getElementById('reward-choices');
 const btnSkipReward = document.getElementById('btn-skip-reward');
 
 const shopModal = document.getElementById('shop-modal');
+const shopArt = document.getElementById('shop-art');
 const shopCreditsBadge = document.getElementById('shop-credits-badge');
 const shopChoices = document.getElementById('shop-choices');
 const btnLeaveShop = document.getElementById('btn-leave-shop');
 
 const eventModal = document.getElementById('event-modal');
+const eventArt = document.getElementById('event-art');
 const eventTitle = document.getElementById('event-title');
 const eventFlavor = document.getElementById('event-flavor');
 const eventChoices = document.getElementById('event-choices');
@@ -165,7 +176,7 @@ function initLobbyControls() {
         const chip = document.createElement('button');
         chip.type = 'button';
         chip.className = `config-chip ${cls.id === selectedClassId ? 'active' : ''}`.trim();
-        chip.textContent = `${cls.icon} ${cls.name}`;
+        chip.innerHTML = `<span class="inline-svg-icon">${getClassArtSvg(cls.id)}</span><span>${cls.name}</span>`;
         chip.addEventListener('click', () => {
           selectedClassId = cls.id;
           refreshClassUI();
@@ -507,13 +518,16 @@ function renderDeckInspector() {
     if (!cDef) continue;
     const effCost = getEffectiveCardCost(cObj, cDef);
     const opt = document.createElement('div');
-    opt.className = `reward-option ${cDef.upgraded ? 'upgrade-opt' : ''}`;
+    opt.className = `reward-option opt-with-art ${cDef.upgraded ? 'upgrade-opt' : ''}`;
     opt.innerHTML = `
-      <div class="reward-opt-top">
-        <span>${cDef.name}</span>
-        <span>COST ${effCost >= 0 ? effCost : 'UNPLAYABLE'} · ${cDef.type.toUpperCase()}</span>
+      <div class="opt-art-thumb">${getCardArtSvg(cDef, cDef.upgraded)}</div>
+      <div class="opt-body">
+        <div class="reward-opt-top">
+          <span>${cDef.name}</span>
+          <span>COST ${effCost >= 0 ? effCost : 'UNPLAYABLE'} · ${cDef.type.toUpperCase()}</span>
+        </div>
+        <div class="reward-opt-desc">${cDef.description}</div>
       </div>
-      <div class="reward-opt-desc">${cDef.description}</div>
     `;
     deckCardsList.appendChild(opt);
   }
@@ -538,7 +552,7 @@ function renderStatusBadges(container, statuses) {
     if (!def) continue;
     const span = document.createElement('span');
     span.className = `tag ${def.cssClass}`;
-    span.textContent = `${def.name} (${stacks})`;
+    span.innerHTML = `<span class="inline-svg-icon sm">${getInteractionArtSvg('status', statusId)}</span><span>${def.name} (${stacks})</span>`;
     span.title = def.description;
     container.appendChild(span);
   }
@@ -700,7 +714,8 @@ function renderBranchingTreeMap(mapState, sectorNum = 1) {
 
       btn.style.left = `${node.xPct || 50}%`;
       btn.style.top = `${yPx}px`;
-      btn.textContent = node.label;
+      const cleanLabel = (node.label || '').replace(/^[^\w\s]+\s*/, '');
+      btn.innerHTML = `<span class="map-node-icon">${getInteractionArtSvg('room', node.roomType)}</span><span>${cleanLabel}</span>`;
       btn.title = meta.description;
 
       if (isSelectable) {
@@ -724,6 +739,9 @@ function renderBranchingTreeMap(mapState, sectorNum = 1) {
 function renderShopModal(me) {
   if (!shopModal || !shopChoices || !me || !me.shopStock) return;
   shopModal.classList.remove('hidden');
+  if (shopArt) {
+    shopArt.innerHTML = getInteractionArtSvg('shop', 'market');
+  }
 
   const credits = me.credits || 0;
   if (shopCreditsBadge) {
@@ -743,13 +761,16 @@ function renderShopModal(me) {
       if (!cDef) continue;
       const canAfford = credits >= item.costCredits;
       const opt = document.createElement('div');
-      opt.className = `reward-option ${cDef.upgraded ? 'upgrade-opt' : ''} ${canAfford ? '' : 'shop-unaffordable'}`.trim();
+      opt.className = `reward-option opt-with-art ${cDef.upgraded ? 'upgrade-opt' : ''} ${canAfford ? '' : 'shop-unaffordable'}`.trim();
       opt.innerHTML = `
-        <div class="reward-opt-top">
-          <span>🃏 ${cDef.name} ${item.onSale ? '<span class="sale-tag">50% OFF</span>' : ''}</span>
-          <span class="shop-price-tag">${item.costCredits} CR</span>
+        <div class="opt-art-thumb">${getCardArtSvg(cDef, cDef.upgraded)}</div>
+        <div class="opt-body">
+          <div class="reward-opt-top">
+            <span>${cDef.name} ${item.onSale ? '<span class="sale-tag">50% OFF</span>' : ''}</span>
+            <span class="shop-price-tag">${item.costCredits} CR</span>
+          </div>
+          <div class="reward-opt-desc">[COST ${cDef.cost} · ${cDef.type.toUpperCase()}] ${cDef.description}</div>
         </div>
-        <div class="reward-opt-desc">[COST ${cDef.cost} · ${cDef.type.toUpperCase()}] ${cDef.description}</div>
       `;
       if (canAfford) {
         opt.addEventListener('click', () => buyShopItem('card', { shopItemId: item.shopItemId }));
@@ -770,13 +791,16 @@ function renderShopModal(me) {
       if (!rDef) continue;
       const canAfford = credits >= rItem.costCredits;
       const opt = document.createElement('div');
-      opt.className = `reward-option relic-opt ${canAfford ? '' : 'shop-unaffordable'}`.trim();
+      opt.className = `reward-option opt-with-art relic-opt ${canAfford ? '' : 'shop-unaffordable'}`.trim();
       opt.innerHTML = `
-        <div class="reward-opt-top">
-          <span>❖ RELIC: ${rDef.name}</span>
-          <span class="shop-price-tag">${rItem.costCredits} CR</span>
+        <div class="opt-art-thumb">${getRelicArtSvg(rDef)}</div>
+        <div class="opt-body">
+          <div class="reward-opt-top">
+            <span>RELIC: ${rDef.name}</span>
+            <span class="shop-price-tag">${rItem.costCredits} CR</span>
+          </div>
+          <div class="reward-opt-desc">${rDef.description}</div>
         </div>
-        <div class="reward-opt-desc">${rDef.description}</div>
       `;
       if (canAfford) {
         opt.addEventListener('click', () => buyShopItem('relic', { shopItemId: rItem.shopItemId }));
@@ -789,13 +813,16 @@ function renderShopModal(me) {
       if (!pDef) continue;
       const canAfford = credits >= pItem.costCredits;
       const opt = document.createElement('div');
-      opt.className = `reward-option potion-opt ${canAfford ? '' : 'shop-unaffordable'}`.trim();
+      opt.className = `reward-option opt-with-art potion-opt ${canAfford ? '' : 'shop-unaffordable'}`.trim();
       opt.innerHTML = `
-        <div class="reward-opt-top">
-          <span>${pDef.icon || '🧪'} POTION: ${pDef.name}</span>
-          <span class="shop-price-tag">${pItem.costCredits} CR</span>
+        <div class="opt-art-thumb">${getPotionArtSvg(pDef)}</div>
+        <div class="opt-body">
+          <div class="reward-opt-top">
+            <span>POTION: ${pDef.name}</span>
+            <span class="shop-price-tag">${pItem.costCredits} CR</span>
+          </div>
+          <div class="reward-opt-desc">${pDef.description}</div>
         </div>
-        <div class="reward-opt-desc">${pDef.description}</div>
       `;
       if (canAfford) {
         opt.addEventListener('click', () => buyShopItem('potion', { shopItemId: pItem.shopItemId }));
@@ -810,18 +837,21 @@ function renderShopModal(me) {
     const canAfford = credits >= stock.purgeCost;
     const grp = document.createElement('div');
     grp.className = 'loot-group';
-    grp.innerHTML = `<div class="loot-group-header"><span>🗑️ CARD PURGE SERVICE (REMOVE 1 CARD)</span><span class="shop-price-tag">${stock.purgeCost} CR</span></div>`;
+    grp.innerHTML = `<div class="loot-group-header"><span><span class="inline-svg-icon">${getInteractionArtSvg('shop', 'purge')}</span> CARD PURGE SERVICE (REMOVE 1 CARD)</span><span class="shop-price-tag">${stock.purgeCost} CR</span></div>`;
     for (const cObj of (me.masterDeck || []).slice(0, 8)) {
       const cDef = resolveCard(cObj);
       if (!cDef) continue;
       const opt = document.createElement('div');
-      opt.className = `reward-option ${canAfford ? '' : 'shop-unaffordable'}`.trim();
+      opt.className = `reward-option opt-with-art ${canAfford ? '' : 'shop-unaffordable'}`.trim();
       opt.innerHTML = `
-        <div class="reward-opt-top">
-          <span>🗑️ PURGE: ${cDef.name}</span>
-          <span class="shop-price-tag">${stock.purgeCost} CR</span>
+        <div class="opt-art-thumb">${getCardArtSvg(cDef, cDef.upgraded)}</div>
+        <div class="opt-body">
+          <div class="reward-opt-top">
+            <span>PURGE: ${cDef.name}</span>
+            <span class="shop-price-tag">${stock.purgeCost} CR</span>
+          </div>
+          <div class="reward-opt-desc">${cDef.description}</div>
         </div>
-        <div class="reward-opt-desc">${cDef.description}</div>
       `;
       if (canAfford) {
         opt.addEventListener('click', () => buyShopItem('purge', { instanceId: cObj.instanceId }));
@@ -837,19 +867,22 @@ function renderShopModal(me) {
     const canAfford = credits >= stock.upgradeCost;
     const grp = document.createElement('div');
     grp.className = 'loot-group';
-    grp.innerHTML = `<div class="loot-group-header"><span>🔨 BLACK MARKET FORGE (UPGRADE 1 CARD)</span><span class="shop-price-tag">${stock.upgradeCost} CR</span></div>`;
+    grp.innerHTML = `<div class="loot-group-header"><span><span class="inline-svg-icon">${getInteractionArtSvg('shop', 'forge')}</span> BLACK MARKET FORGE (UPGRADE 1 CARD)</span><span class="shop-price-tag">${stock.upgradeCost} CR</span></div>`;
     for (const cObj of unupgraded.slice(0, 6)) {
       const baseDef = resolveCard(cObj, false);
       const upgDef = resolveCard(cObj, true);
       if (!baseDef || !upgDef) continue;
       const opt = document.createElement('div');
-      opt.className = `reward-option upgrade-opt ${canAfford ? '' : 'shop-unaffordable'}`.trim();
+      opt.className = `reward-option opt-with-art upgrade-opt ${canAfford ? '' : 'shop-unaffordable'}`.trim();
       opt.innerHTML = `
-        <div class="reward-opt-top">
-          <span>🔨 UPGRADE: ${baseDef.name} ➔ ${upgDef.name}</span>
-          <span class="shop-price-tag">${stock.upgradeCost} CR</span>
+        <div class="opt-art-thumb">${getCardArtSvg(upgDef, true)}</div>
+        <div class="opt-body">
+          <div class="reward-opt-top">
+            <span>UPGRADE: ${baseDef.name} ➔ ${upgDef.name}</span>
+            <span class="shop-price-tag">${stock.upgradeCost} CR</span>
+          </div>
+          <div class="reward-opt-desc">${upgDef.description}</div>
         </div>
-        <div class="reward-opt-desc">${upgDef.description}</div>
       `;
       if (canAfford) {
         opt.addEventListener('click', () => buyShopItem('upgrade', { instanceId: cObj.instanceId }));
@@ -870,6 +903,7 @@ function renderEventModal(state) {
   const evDef = EVENT_REGISTRY[state.activeEventId] || Object.values(EVENT_REGISTRY)[0];
   if (!evDef) return;
 
+  if (eventArt) eventArt.innerHTML = getInteractionArtSvg('event', evDef.id);
   if (eventTitle) eventTitle.textContent = evDef.title;
   if (eventFlavor) eventFlavor.textContent = evDef.flavor;
 
@@ -944,7 +978,7 @@ function renderState(state, prevState = null) {
       const chip = document.createElement('div');
       chip.className = 'relic-chip';
       const cntText = relicState.counter > 0 ? `<span class="relic-cnt">[${relicState.counter}]</span>` : '';
-      chip.innerHTML = `❖ ${rDef.name}${cntText}`;
+      chip.innerHTML = `<span class="inline-svg-icon">${getRelicArtSvg(rDef)}</span><span>${rDef.name}${cntText}</span>`;
       chip.title = rDef.description;
       chip.addEventListener('click', () => {
         const feedItem = document.createElement('p');
@@ -968,7 +1002,8 @@ function renderState(state, prevState = null) {
         slotEl.className = 'potion-slot filled';
         slotEl.title = `${pDef.name}: ${pDef.description} (Tap to use, × to discard)`;
         slotEl.innerHTML = `
-          <span>${pDef.icon || '🧪'} ${pDef.name.split(' ')[0]}</span>
+          <span class="inline-svg-icon">${getPotionArtSvg(pDef)}</span>
+          <span>${pDef.name.split(' ')[0]}</span>
           <span class="potion-dump" title="Discard Potion">×</span>
         `;
         slotEl.addEventListener('click', () => usePotionSlot(i));
@@ -999,17 +1034,25 @@ function renderState(state, prevState = null) {
       unitEl.className = `enemy-unit ${isTargeted ? 'targeted' : ''} ${isDead ? 'dead' : ''}`.trim();
 
       unitEl.innerHTML = `
-        <div class="intent-chip ${telegraph.category}">${telegraph.text}</div>
+        <div class="intent-chip ${telegraph.category}">
+          <span class="inline-svg-icon sm">${getInteractionArtSvg('intent', telegraph.category)}</span>
+          <span>${telegraph.text}</span>
+        </div>
         <div class="enemy-card">
-          <div class="enemy-info">
-            <span class="entity-name">${isTargeted && enemies.length > 1 ? '🎯 ' : ''}${enemy.name}</span>
-            ${isTargeted && enemies.length > 1 ? '<span class="target-badge">TARGET</span>' : ''}
-            <div class="status-tags enemy-status-slot"></div>
-          </div>
-          <div class="meter-bar">
-            <div class="meter-fill hp-color" style="width: ${hpPct}%;"></div>
-            <div class="meter-fill shield-color" style="width: ${shieldPct}%;"></div>
-            <span class="meter-label">${enemy.hp} / ${enemy.maxHp} ${enemy.shield > 0 ? `(+${enemy.shield} 🛡️)` : ''}</span>
+          <div class="enemy-card-row">
+            <div class="enemy-art-box">${getEnemyArtSvg(enemy)}</div>
+            <div class="enemy-card-body">
+              <div class="enemy-info">
+                <span class="entity-name">${isTargeted && enemies.length > 1 ? '🎯 ' : ''}${enemy.name}</span>
+                ${isTargeted && enemies.length > 1 ? '<span class="target-badge">TARGET</span>' : ''}
+                <div class="status-tags enemy-status-slot"></div>
+              </div>
+              <div class="meter-bar">
+                <div class="meter-fill hp-color" style="width: ${hpPct}%;"></div>
+                <div class="meter-fill shield-color" style="width: ${shieldPct}%;"></div>
+                <span class="meter-label">${enemy.hp} / ${enemy.maxHp} ${enemy.shield > 0 ? `(+${enemy.shield} 🛡️)` : ''}</span>
+              </div>
+            </div>
           </div>
         </div>
       `;
@@ -1036,6 +1079,10 @@ function renderState(state, prevState = null) {
 
   // Render My Vitals, Pile Counts & Hand
   if (me) {
+    if (playerAvatar) {
+      playerAvatar.innerHTML = getClassArtSvg(me.classId || 'vanguard');
+      playerAvatar.title = `${me.className || 'OPERATIVE'}`;
+    }
     playerEnergy.textContent = me.energy.toString();
     if (playerMaxEnergy) {
       playerMaxEnergy.textContent = `/${me.maxEnergy || 3}`;
@@ -1095,6 +1142,7 @@ function renderState(state, prevState = null) {
           <span class="card-cost">${isUnplayable ? '×' : effCost}</span>
           <span class="card-type">${def.type.toUpperCase()}</span>
         </div>
+        <div class="card-art-box">${getCardArtSvg(def, def.upgraded)}</div>
         <div class="card-title">${def.name}</div>
         <div class="card-desc">${descText}</div>
         ${def.exhaust ? '<div class="card-footer-tag">EXHAUST</div>' : ''}
@@ -1120,13 +1168,16 @@ function renderState(state, prevState = null) {
         const rDef = RELIC_REGISTRY[rId];
         if (!rDef) continue;
         const opt = document.createElement('div');
-        opt.className = 'reward-option relic-opt';
+        opt.className = 'reward-option opt-with-art relic-opt';
         opt.innerHTML = `
-          <div class="reward-opt-top">
-            <span>❖ ${rDef.name}</span>
-            <span>STARTER CORE RELIC</span>
+          <div class="opt-art-thumb">${getRelicArtSvg(rDef)}</div>
+          <div class="opt-body">
+            <div class="reward-opt-top">
+              <span>${rDef.name}</span>
+              <span>STARTER CORE RELIC</span>
+            </div>
+            <div class="reward-opt-desc">${rDef.description}</div>
           </div>
-          <div class="reward-opt-desc">${rDef.description}</div>
         `;
         opt.addEventListener('click', () => chooseBootRelic(rId));
         bootRelicChoices.appendChild(opt);
@@ -1207,13 +1258,16 @@ function renderState(state, prevState = null) {
             const cDef = resolveCard(cObj);
             if (!cDef) continue;
             const opt = document.createElement('div');
-            opt.className = `reward-option ${cDef.upgraded ? 'upgrade-opt' : ''}`;
+            opt.className = `reward-option opt-with-art ${cDef.upgraded ? 'upgrade-opt' : ''}`;
             opt.innerHTML = `
-              <div class="reward-opt-top">
-                <span>+ CARD: ${cDef.name}</span>
-                <span>COST ${cDef.cost} · ${cDef.type.toUpperCase()}</span>
+              <div class="opt-art-thumb">${getCardArtSvg(cDef, cDef.upgraded)}</div>
+              <div class="opt-body">
+                <div class="reward-opt-top">
+                  <span>+ CARD: ${cDef.name}</span>
+                  <span>COST ${cDef.cost} · ${cDef.type.toUpperCase()}</span>
+                </div>
+                <div class="reward-opt-desc">${cDef.description}</div>
               </div>
-              <div class="reward-opt-desc">${cDef.description}</div>
             `;
             opt.addEventListener('click', () => claimLoot(item.id, { defId: cObj.defId }));
             group.appendChild(opt);
@@ -1222,13 +1276,16 @@ function renderState(state, prevState = null) {
           const rDef = RELIC_REGISTRY[item.relicId];
           if (rDef) {
             const opt = document.createElement('div');
-            opt.className = 'reward-option relic-opt';
+            opt.className = 'reward-option opt-with-art relic-opt';
             opt.innerHTML = `
-              <div class="reward-opt-top">
-                <span>❖ RELIC: ${rDef.name}</span>
-                <span>TAKE RELIC</span>
+              <div class="opt-art-thumb">${getRelicArtSvg(rDef)}</div>
+              <div class="opt-body">
+                <div class="reward-opt-top">
+                  <span>RELIC: ${rDef.name}</span>
+                  <span>TAKE RELIC</span>
+                </div>
+                <div class="reward-opt-desc">${rDef.description}</div>
               </div>
-              <div class="reward-opt-desc">${rDef.description}</div>
             `;
             opt.addEventListener('click', () => claimLoot(item.id));
             group.appendChild(opt);
@@ -1237,13 +1294,16 @@ function renderState(state, prevState = null) {
           const pDef = POTION_REGISTRY[item.potionId];
           if (pDef) {
             const opt = document.createElement('div');
-            opt.className = 'reward-option potion-opt';
+            opt.className = 'reward-option opt-with-art potion-opt';
             opt.innerHTML = `
-              <div class="reward-opt-top">
-                <span>${pDef.icon || '🧪'} POTION: ${pDef.name}</span>
-                <span>STORE IN SLOT</span>
+              <div class="opt-art-thumb">${getPotionArtSvg(pDef)}</div>
+              <div class="opt-body">
+                <div class="reward-opt-top">
+                  <span>POTION: ${pDef.name}</span>
+                  <span>STORE IN SLOT</span>
+                </div>
+                <div class="reward-opt-desc">${pDef.description}</div>
               </div>
-              <div class="reward-opt-desc">${pDef.description}</div>
             `;
             opt.addEventListener('click', () => claimLoot(item.id));
             group.appendChild(opt);
@@ -1255,13 +1315,16 @@ function renderState(state, prevState = null) {
             const upgDef = resolveCard(deckCard, true);
             if (!baseDef || !upgDef) continue;
             const opt = document.createElement('div');
-            opt.className = 'reward-option upgrade-opt';
+            opt.className = 'reward-option opt-with-art upgrade-opt';
             opt.innerHTML = `
-              <div class="reward-opt-top">
-                <span>🔨 UPGRADE: ${baseDef.name} ➔ ${upgDef.name}</span>
-                <span>COST ${baseDef.cost}➔${upgDef.cost}</span>
+              <div class="opt-art-thumb">${getCardArtSvg(upgDef, true)}</div>
+              <div class="opt-body">
+                <div class="reward-opt-top">
+                  <span>UPGRADE: ${baseDef.name} ➔ ${upgDef.name}</span>
+                  <span>COST ${baseDef.cost}➔${upgDef.cost}</span>
+                </div>
+                <div class="reward-opt-desc">${upgDef.description}</div>
               </div>
-              <div class="reward-opt-desc">${upgDef.description}</div>
             `;
             opt.addEventListener('click', () => claimLoot(item.id, { instanceId: deckCard.instanceId }));
             group.appendChild(opt);
