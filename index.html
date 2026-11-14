@@ -20,47 +20,53 @@
         </div>
 
         <div class="form-group">
-          <div class="input-row">
-            <label class="input-field">
-              <span class="field-label">CALLSIGN</span>
-              <input type="text" id="player-name-input" placeholder="OPERATIVE" maxlength="12" autofocus>
-            </label>
-            <label class="input-field">
-              <span class="field-label">CO-OP ROOM (OPTIONAL)</span>
-              <input type="text" id="room-code-input" placeholder="AUTO-GEN" maxlength="6">
-            </label>
-          </div>
+          <div class="lobby-grid">
+            <div class="lobby-col">
+              <div class="input-row">
+                <label class="input-field">
+                  <span class="field-label">CALLSIGN</span>
+                  <input type="text" id="player-name-input" placeholder="OPERATIVE" maxlength="12" autofocus>
+                </label>
+                <label class="input-field">
+                  <span class="field-label">CO-OP ROOM (OPTIONAL)</span>
+                  <input type="text" id="room-code-input" placeholder="AUTO-GEN" maxlength="6">
+                </label>
+              </div>
 
-          <!-- Operative Class Cards -->
-          <div class="config-section">
-            <div class="config-row-between">
-              <span class="config-label">1. CHOOSE OPERATIVE CLASS</span>
-              <span class="config-hint">TAP TO SELECT</span>
-            </div>
-            <div id="class-selector" class="class-card-grid"></div>
-          </div>
-
-          <!-- Threat Level Slider & Live Modifier Preview -->
-          <div class="config-section">
-            <div class="config-row-between">
-              <span class="config-label">2. THREAT LEVEL (ASCENSION)</span>
-              <div class="threat-stepper">
-                <button id="btn-threat-down" class="step-btn" type="button">-</button>
-                <span id="threat-val" class="threat-val">LVL 0</span>
-                <button id="btn-threat-up" class="step-btn" type="button">+</button>
+              <!-- Operative Class Cards -->
+              <div class="config-section">
+                <div class="config-row-between">
+                  <span class="config-label">1. CHOOSE OPERATIVE CLASS</span>
+                  <span class="config-hint">TAP TO SELECT</span>
+                </div>
+                <div id="class-selector" class="class-card-grid"></div>
               </div>
             </div>
-            <input id="threat-slider" class="threat-slider" type="range" min="0" max="10" value="0">
-            <div id="threat-preview" class="threat-preview">STANDARD DIFFICULTY · Normal enemy HP &amp; damage</div>
-          </div>
 
-          <!-- Run Mutators -->
-          <div class="config-section">
-            <div class="config-row-between">
-              <span class="config-label">3. RUN MUTATORS (OPTIONAL)</span>
-              <span id="mutator-count-badge" class="config-hint">0 ACTIVE</span>
+            <div class="lobby-col">
+              <!-- Threat Level Slider & Live Modifier Preview -->
+              <div class="config-section">
+                <div class="config-row-between">
+                  <span class="config-label">2. THREAT LEVEL (ASCENSION)</span>
+                  <div class="threat-stepper">
+                    <button id="btn-threat-down" class="step-btn" type="button">-</button>
+                    <span id="threat-val" class="threat-val">LVL 0</span>
+                    <button id="btn-threat-up" class="step-btn" type="button">+</button>
+                  </div>
+                </div>
+                <input id="threat-slider" class="threat-slider" type="range" min="0" max="10" value="0">
+                <div id="threat-preview" class="threat-preview">STANDARD DIFFICULTY · Normal enemy HP &amp; damage</div>
+              </div>
+
+              <!-- Run Mutators -->
+              <div class="config-section">
+                <div class="config-row-between">
+                  <span class="config-label">3. RUN MUTATORS (OPTIONAL)</span>
+                  <span id="mutator-count-badge" class="config-hint">0 ACTIVE</span>
+                </div>
+                <div id="mutator-selector" class="mutator-card-grid"></div>
+              </div>
             </div>
-            <div id="mutator-selector" class="mutator-card-grid"></div>
           </div>
 
           <div class="lobby-actions">

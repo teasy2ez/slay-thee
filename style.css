@@ -80,18 +80,32 @@ body, html {
 
 .lobby-card {
   width: 100%;
-  max-width: 740px;
-  max-height: 94dvh;
+  max-width: 960px;
+  max-height: 95dvh;
   overflow-y: auto;
+  scrollbar-width: none;
   background: var(--surface);
   border: 1px solid var(--border-focus);
   border-radius: var(--radius-lg);
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(12px);
-  padding: clamp(14px, 3vw, 22px);
+  padding: clamp(10px, 2vw, 18px);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+}
+
+.lobby-card::-webkit-scrollbar,
+.combat-feed::-webkit-scrollbar,
+.reward-choices::-webkit-scrollbar,
+.map-scroll-viewport::-webkit-scrollbar {
+  display: none;
+}
+
+.combat-feed,
+.reward-choices,
+.map-scroll-viewport {
+  scrollbar-width: none;
 }
 
 .lobby-header-row {
@@ -1701,4 +1715,69 @@ input:focus {
 
 .run-end-actions .btn {
   flex: 1 1 200px;
+}
+
+
+/* ==========================================================================
+   Reactive 2-Column Bento Start Menu & Universal Window Adaptation
+   ========================================================================== */
+.lobby-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.lobby-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+@media (min-width: 760px) {
+  .lobby-grid {
+    grid-template-columns: 1.15fr 1fr;
+    align-items: start;
+    gap: 12px;
+  }
+
+  .class-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mutator-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .overlay-panel {
+    max-width: 760px;
+  }
+
+  .run-end-panel {
+    max-width: 680px;
+  }
+}
+
+@media (max-height: 700px) {
+  #lobby-screen {
+    padding: 6px;
+  }
+  .lobby-card {
+    padding: 10px 12px;
+    gap: 7px;
+  }
+  .lobby-header-row {
+    padding-bottom: 6px;
+  }
+  .config-section {
+    padding: 7px 9px;
+    gap: 5px;
+  }
+  .class-card,
+  .mutator-card {
+    padding: 6px 8px;
+  }
+  .btn {
+    padding: 9px 12px;
+  }
 }
